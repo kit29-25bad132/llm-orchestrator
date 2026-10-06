@@ -424,6 +424,7 @@ def _api_error(
         (genai_errors.ClientError, 401, AuthenticationError),
         (genai_errors.ClientError, 403, AuthorizationError),
         (genai_errors.ClientError, 404, ModelUnavailableError),
+        (genai_errors.ClientError, 408, LLMTimeoutError),
         (genai_errors.ClientError, 429, RateLimitError),
         (genai_errors.ClientError, 422, InvalidRequestError),
         (genai_errors.ServerError, 500, ProviderUnavailableError),

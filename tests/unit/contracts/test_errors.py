@@ -117,6 +117,34 @@ def test_rate_limit_exposes_retry_after() -> None:
     assert error.retry_after_s == 12.5
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, None),
+        (0, 0.0),
+        (5, 5.0),
+        (2.5, 2.5),
+        (-1.0, None),
+        (True, None),
+        ("5", None),
+        (float("nan"), None),
+        (float("inf"), None),
+        (float("-inf"), None),
+    ],
+)
+def test_retry_after_is_normalized_to_safe_values(raw: object, expected: float | None) -> None:
+    error = RateLimitError("throttled", retry_after_s=raw)  # type: ignore[arg-type]
+    if expected is None:
+        assert error.retry_after_s is None
+    else:
+        assert error.retry_after_s == expected
+        assert isinstance(error.retry_after_s, float)
+
+
+def test_retry_after_defaults_to_none() -> None:
+    assert RateLimitError("throttled").retry_after_s is None
+
+
 def test_secrets_are_redacted_from_message_and_str() -> None:
     secret = "AIzaSyABCDEFGHIJKLMNOPQRSTUVWXYZ012345"
     error = AuthenticationError(f"invalid key: {secret}")

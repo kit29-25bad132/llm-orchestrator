@@ -89,6 +89,9 @@ sanitization so credentials cannot leak into logs.
 from llm_orchestrator.errors import ErrorCategory, LLMError, RateLimitError
 ```
 
+See [`docs/errors.md`](docs/errors.md) for the full classification model,
+the category matrix, and the per-provider mapping tables.
+
 Runtime dependencies are deliberately minimal: **Pydantic** (contract
 validation, immutability, and predictable serialization), **`google-genai`**
 (the official Gemini SDK, imported only inside the Gemini adapter), and
@@ -243,6 +246,7 @@ llm-orchestrator/
 │   ├── architecture.md
 │   ├── providers.md            # provider + Gemini/Groq adapter documentation
 │   ├── reliability.md          # retry engine documentation
+│   ├── errors.md               # normalized error classification model
 │   └── roadmap.md
 ├── .github/
 │   └── workflows/

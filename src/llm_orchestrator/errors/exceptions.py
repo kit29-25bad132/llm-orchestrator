@@ -6,6 +6,7 @@ the category but can still be overridden per instance.
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from .base import LLMError
@@ -31,7 +32,21 @@ class RateLimitError(LLMError):
 
     def __init__(self, message: str, *, retry_after_s: float | None = None, **kwargs: Any) -> None:
         super().__init__(message, **kwargs)
-        self.retry_after_s = retry_after_s
+        self.retry_after_s = _normalize_retry_after(retry_after_s)
+
+
+def _normalize_retry_after(value: float | None) -> float | None:
+    """Coerce a server-provided retry delay to a safe value.
+
+    Only finite, non-negative numbers are meaningful as a wait duration;
+    anything else (missing, non-numeric, negative, NaN, infinite) becomes
+    ``None`` so consumers never sleep a dangerous or nonsensical delay.
+    """
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    if not math.isfinite(value) or value < 0:
+        return None
+    return float(value)
 
 
 class LLMTimeoutError(LLMError):

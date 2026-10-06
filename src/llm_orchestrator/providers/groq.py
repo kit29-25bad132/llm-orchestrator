@@ -182,6 +182,10 @@ def _map_status_error(
         return AuthorizationError(message, **context)
     if code == 404:
         return ModelUnavailableError(message, **context)
+    if code == 408:
+        # A request-timeout status means the operation timed out server-side:
+        # retryable, unlike the other 4xx client errors below.
+        return LLMTimeoutError(message, **context)
     if code == 429:
         return RateLimitError(message, retry_after_s=_retry_after_s(exc), **context)
     if isinstance(code, int) and 400 <= code < 500:

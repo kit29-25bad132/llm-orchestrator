@@ -376,6 +376,7 @@ def _status_error(
         (groq.AuthenticationError, 401, AuthenticationError),
         (groq.PermissionDeniedError, 403, AuthorizationError),
         (groq.NotFoundError, 404, ModelUnavailableError),
+        (groq.BadRequestError, 408, LLMTimeoutError),
         (groq.RateLimitError, 429, RateLimitError),
         (groq.UnprocessableEntityError, 422, InvalidRequestError),
         (groq.InternalServerError, 500, ProviderUnavailableError),

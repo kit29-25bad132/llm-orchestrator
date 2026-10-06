@@ -156,6 +156,7 @@ exception chained (`raise ... from exc`) and preserved as `cause`.
 | HTTP 401 | `AuthenticationError` | no |
 | HTTP 403 | `AuthorizationError` | no |
 | HTTP 404 | `ModelUnavailableError` | no (fallback-eligible) |
+| HTTP 408 | `LLMTimeoutError` | **yes** |
 | HTTP 429 | `RateLimitError` (+ `retry_after_s`) | **yes** |
 | other 4xx | `InvalidRequestError` | no |
 | HTTP 5xx | `ProviderUnavailableError` | **yes** |
@@ -303,6 +304,7 @@ exception chained (`raise ... from exc`) and preserved as `cause`.
 | HTTP 401 (`AuthenticationError`) | `AuthenticationError` | no |
 | HTTP 403 (`PermissionDeniedError`) | `AuthorizationError` | no |
 | HTTP 404 (`NotFoundError`) | `ModelUnavailableError` | no (fallback-eligible) |
+| HTTP 408 | `LLMTimeoutError` | **yes** |
 | HTTP 429 (`RateLimitError`, + `retry_after_s`) | `RateLimitError` | **yes** |
 | HTTP 5xx (`InternalServerError`) | `ProviderUnavailableError` | **yes** |
 | SDK/HTTP timeout (`APITimeoutError`) | `LLMTimeoutError` | **yes** |
