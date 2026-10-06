@@ -41,12 +41,12 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 - **O:** Create an installable, linted, typed, testable package skeleton.
 - **C:** `pyproject.toml` (PEP 621), `src/llm_orchestrator/__init__.py`,
-  `.env.example`, `.gitignore` (extend), `LICENSE` (human-chosen), CI config,
-  dev tooling (ruff, mypy, pytest).
-- **T:** Decide Python floor (3.11+ recommended) and verify against the local
-  3.14 interpreter; declare Pydantic + `pydantic-settings`; add LangGraph as an
-  optional extra; set up `pip install -e .`; add a smoke test.
-- **X:** Package imports; `pytest` runs an empty/placeholder-free smoke test;
+  `.env.example`, CI config, dev tooling (ruff, mypy, pytest).
+- **T:** Decide Python floor (3.11+) and verify against the local 3.14
+  interpreter; keep runtime dependencies **empty** (Pydantic/pydantic-settings
+  and LangGraph are added in the phases that consume them); set up
+  `pip install -e ".[dev]"`; add a foundation test.
+- **X:** Package imports; `pytest` runs a placeholder-free foundation test;
   ruff + mypy pass.
 - **D:** `pip install -e ".[dev]"` works; CI is green; no behavior yet.
 - **!:** No provider, retry, fallback, or graph code. No secrets committed.

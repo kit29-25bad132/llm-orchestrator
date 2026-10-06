@@ -8,70 +8,158 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 0 — architecture and foundation only.**
-> No implementation exists yet. There is no installable package, no provider
-> code, and no dependencies have been installed. This repository currently
-> contains documentation that defines the design and the development plan.
+> **Status: Phase 1 — package foundation only.**
+> The project is an installable, tested, lint-checked Python package that
+> exposes package identity and nothing else. **No providers, routing, retry,
+> fallback, structured output, or orchestration exist yet** — those arrive in
+> later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
 
 Applications that call LLMs repeatedly re-solve the same problems: swapping
 providers, handling rate limits and timeouts, retrying safely, falling back to
 another model, validating structured output, and observing what happened. This
-library solves those problems once, behind a clean seam, so any project can reuse
-it without inheriting another project's domain logic.
+library will solve those problems once, behind a clean seam, so any project can
+reuse it without inheriting another project's domain logic.
 
-## Design principles
+## Architecture purpose
 
-- **Provider-agnostic core.** The orchestrator depends on a `Provider` protocol,
-  never on Gemini or Groq directly. Adding a provider is a new adapter plus a
-  registry entry — no core changes.
-- **Dumb providers, smart policies.** Providers translate requests/responses and
-  map errors; they never decide retries, fallbacks, or routing.
-- **Retry ≠ fallback.** Retry re-attempts the same candidate; fallback moves to a
-  different candidate. They are separate policies that compose.
-- **Not every error is retryable.** A normalized error taxonomy drives
-  retry/fallback/fail-fast decisions instead of blind retrying.
-- **LangGraph is an engine, not the architecture.** The run semantics are
-  engine-agnostic; LangGraph is the V1 control-flow implementation.
-- **No abstraction without a second consumer.** Interfaces appear only where a
-  second implementation is genuinely expected.
-- **Secrets stay in the environment.** Never hardcoded, never logged.
+The library separates concerns along a strict dependency direction:
 
-## Planned capabilities (V1)
+```
+Application (brings its own business logic / schemas)
+    ↓
+Orchestrator
+    ↓
+Policies (routing / reliability / validation)
+    ↓
+Provider abstraction
+    ↓
+Concrete providers (added later)
+```
 
-Provider abstraction · Gemini and Groq adapters · model selection · timeout
-handling · retry with exponential backoff + jitter · model/provider fallback ·
-normalized error classification · structured output + schema validation ·
-LangGraph orchestration · configuration management · basic observability · a
-strong offline test suite.
+Design principles:
 
-## Documentation
+- **Provider-agnostic core.** The orchestrator will depend on a `Provider`
+  protocol, never on a specific vendor.
+- **Dumb providers, smart policies.** Providers translate; policies decide
+  retries, fallbacks, and routing.
+- **Retry ≠ fallback.** Retry re-attempts the same candidate; fallback moves to
+  a different one.
+- **Not every error is retryable.** A normalized taxonomy drives decisions
+  instead of blind retrying.
+- **No abstraction without a second consumer.**
+- **Secrets stay in the environment** — never hardcoded, never logged.
 
-- [`docs/architecture.md`](docs/architecture.md) — boundaries, core abstractions,
-  provider/retry/fallback design, error taxonomy, LangGraph role, structured
-  output, observability, configuration, security, testing, V1 scope.
-- [`docs/roadmap.md`](docs/roadmap.md) — the phase-by-phase plan from foundation
-  to production readiness.
+See [`docs/architecture.md`](docs/architecture.md) for the full design.
+
+## Project structure
+
+```
+llm-orchestrator/
+├── src/
+│   └── llm_orchestrator/
+│       └── __init__.py     # package identity only (version)
+├── tests/
+│   └── unit/
+│       └── test_package.py # foundation tests
+├── docs/
+│   ├── architecture.md
+│   └── roadmap.md
+├── .github/
+│   └── workflows/
+│       └── ci.yml          # install + ruff + mypy + pytest
+├── .env.example
+├── .gitignore
+├── pyproject.toml
+└── README.md
+```
+
+The package uses the modern `src/` layout so tests run against the installed
+package rather than an accidentally-imported source directory.
+
+## Development setup
+
+Requires **Python 3.11 or newer** (see [Python version policy](#python-version-policy)).
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+macOS / Linux:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e ".[dev]"
+```
+
+The virtual environment (`.venv/`), caches, build artifacts, and local `.env`
+files are git-ignored. Never commit the environment or real credentials.
+
+## Running tests
+
+```bash
+pytest
+```
+
+Optional quality checks (also run in CI):
+
+```bash
+ruff check .
+ruff format --check .
+mypy
+```
+
+Tests are grouped by kind under `tests/`. Provider/API-calling tests will be
+marked `live` and skipped by default so normal development consumes no API
+quota.
+
+## Python version policy
+
+- **Supported:** `>=3.11` (enforced via `requires-python`, so installation fails
+  clearly on an older interpreter).
+- **Floor rationale:** 3.11 provides the modern typing features the design
+  relies on while keeping compatibility broad.
+- **Development interpreter:** validated on Python 3.14.0 locally, with CI
+  covering 3.11–3.14.
+
+## Current phase
+
+**Phase 1 — Package Foundation.** Installable package skeleton, packaging
+metadata, dev tooling, foundation tests, and environment template. No LLM
+behavior is implemented.
 
 ## Roadmap at a glance
 
 ```
-Empty repo → Architecture (Phase 0)
-           → Package foundation → Contracts → Provider abstraction
-           → Gemini → Groq → Retry → Error classification → Fallback
-           → LangGraph orchestration → Structured output → Routing
-           → Observability → Testing → Packaging
-           → ReviewIQ integration → Second-project portability test
+Empty repo → Architecture (Phase 0) → Package foundation (Phase 1, current)
+           → Contracts → Provider abstraction → Gemini → Groq → Retry
+           → Error classification → Fallback → LangGraph orchestration
+           → Structured output → Routing → Observability → Testing
+           → Packaging → ReviewIQ integration → Portability test
            → Production hardening → Final E2E validation
 ```
 
-## Getting started
+High-level future capabilities: provider/model abstraction, routing, retries
+with backoff and jitter, model- and provider-level fallback, normalized error
+classification, structured output with validation, LangGraph orchestration,
+configuration, and observability. Details in
+[`docs/roadmap.md`](docs/roadmap.md).
 
-Not yet runnable. The package foundation (packaging, tooling, and CI) arrives in
-Phase 1; see [`docs/roadmap.md`](docs/roadmap.md).
+## Development / Git workflow
+
+This repository is developed phase by phase. The agent does not perform Git
+mutations — the human developer reviews `git status` and `git diff`, then
+commits each completed phase manually.
 
 ## License
 
 Not yet chosen. A `LICENSE` file will be added once the licensing decision is
-made (see `docs/architecture.md` §18).
+made (see [`docs/architecture.md`](docs/architecture.md) §18).
