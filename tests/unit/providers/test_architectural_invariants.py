@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import ast
 import re
+import subprocess
+import sys
 from importlib.metadata import requires
 from pathlib import Path
 
@@ -131,9 +133,42 @@ def test_no_langgraph_anywhere_in_the_library() -> None:
         )
 
 
-def test_no_concrete_provider_modules_exist_yet() -> None:
-    for path in PROVIDERS_DIR.rglob("*.py"):
-        assert path.name not in {"gemini.py", "groq.py", "openai.py", "anthropic.py"}
+def test_gemini_is_the_only_concrete_provider() -> None:
+    found = {path.name for path in PROVIDERS_DIR.rglob("*.py")} & {
+        "gemini.py",
+        "groq.py",
+        "openai.py",
+        "anthropic.py",
+        "mistral.py",
+    }
+    assert found == {"gemini.py"}
+
+
+def test_only_the_gemini_module_imports_the_sdk() -> None:
+    for path in ALL_SOURCE_FILES:
+        roots = _imported_module_roots(path)
+        if path.name == "gemini.py":
+            assert "google" in roots, "the Gemini adapter must import the SDK"
+        else:
+            assert "google" not in roots, f"{path.name} imports the Gemini SDK outside the adapter"
+
+
+def test_importing_the_library_does_not_import_the_gemini_sdk() -> None:
+    code = (
+        "import sys, llm_orchestrator, llm_orchestrator.contracts, "
+        "llm_orchestrator.errors, llm_orchestrator.providers; "
+        "assert 'google.genai' not in sys.modules, 'SDK imported eagerly'"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_no_credential_literals_in_source() -> None:
+    pattern = re.compile(r"(AIza[0-9A-Za-z_\-]{20,}|sk-[A-Za-z0-9]{20,}|gsk_[A-Za-z0-9]{20,})")
+    for path in ALL_SOURCE_FILES:
+        assert not pattern.search(path.read_text(encoding="utf-8")), (
+            f"{path.name} contains a credential-like literal"
+        )
 
 
 def test_no_application_coupling() -> None:
@@ -149,4 +184,6 @@ def test_declared_runtime_dependencies_still_minimal() -> None:
             continue
         name = re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].strip().lower()
         runtime.add(name)
-    assert runtime == {"pydantic"}, f"unexpected runtime dependencies: {sorted(runtime)}"
+    assert runtime == {"pydantic", "google-genai"}, (
+        f"unexpected runtime dependencies: {sorted(runtime)}"
+    )

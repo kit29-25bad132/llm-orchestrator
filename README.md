@@ -8,13 +8,14 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 3 — provider abstraction.**
+> **Status: Phase 4 — Gemini provider.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
-> (`llm_orchestrator.errors`), and the **provider abstraction + registry**
-> (`llm_orchestrator.providers`). **No concrete providers, routing, retry,
-> fallback, structured generation, or orchestration exist yet** — those consume
-> these boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
+> (`llm_orchestrator.errors`), the **provider abstraction + registry**
+> (`llm_orchestrator.providers`), and a concrete **Gemini adapter**
+> (`llm_orchestrator.providers.gemini`). **No routing, retry, fallback,
+> structured generation, or orchestration exists yet** — those consume these
+> boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
 
@@ -58,8 +59,8 @@ See [`docs/architecture.md`](docs/architecture.md) for the full design.
 ## Core contracts (Phase 2)
 
 The contract layer is the stable boundary between applications and the
-orchestration infrastructure. It is provider-neutral, application-neutral, and
-its only runtime dependency is Pydantic.
+orchestration infrastructure. It is provider-neutral and application-neutral,
+and it has no provider SDK dependency.
 
 ```python
 from llm_orchestrator.contracts import LLMRequest, Message, MessageRole
@@ -86,10 +87,11 @@ sanitization so credentials cannot leak into logs.
 from llm_orchestrator.errors import ErrorCategory, LLMError, RateLimitError
 ```
 
-Pydantic is the single runtime dependency: it provides validation, immutability,
-and predictable serialization for the contracts.
+Runtime dependencies are deliberately minimal: **Pydantic** (contract
+validation, immutability, and predictable serialization) and **`google-genai`**
+(the official Gemini SDK, imported only inside the Gemini adapter).
 
-## Provider abstraction (Phase 3)
+## Providers (Phase 3 abstraction, Phase 4 Gemini)
 
 Providers plug into a tiny, SDK-free boundary. A provider receives a normalized
 `LLMRequest` plus the target `ModelConfig` and returns a normalized `LLMResponse`
@@ -122,8 +124,30 @@ registry.get("my-vendor")
 - Capabilities stay **model-level** (`ModelCapabilities` on `ModelConfig`), so
   there is a single source of truth; the provider interface is not a metadata
   dump.
-- Concrete providers (Gemini, Groq, …) arrive in Phases 4–5; the registry never
-  special-cases a vendor.
+- Gemini is implemented in `llm_orchestrator.providers.gemini`; Groq arrives in
+  Phase 5. The registry never special-cases a vendor.
+
+### Gemini (Phase 4)
+
+The first concrete adapter. It is the only module allowed to import the Google
+GenAI SDK, so no SDK type crosses the boundary:
+
+```python
+from llm_orchestrator.contracts import LLMRequest, Message, MessageRole, ModelConfig
+from llm_orchestrator.providers.gemini import GeminiProvider
+
+provider = GeminiProvider(api_key=os.environ["GEMINI_API_KEY"])
+request = LLMRequest(messages=[Message(role=MessageRole.USER, content="Hi")])
+model = ModelConfig(provider="gemini", model="<gemini-model-id>")
+
+response = await provider.generate(request, model)  # one attempt, normalized LLMResponse
+await provider.aclose()
+```
+
+Configuration is injected explicitly (the provider never reads the environment),
+the SDK client is created lazily and reused, Gemini errors are normalized into
+the library's error hierarchy, and import of the library never touches the SDK
+or the network. See [`docs/providers.md`](docs/providers.md).
 
 ## Project structure
 
@@ -145,17 +169,21 @@ llm-orchestrator/
 │       │   ├── categories.py   # ErrorCategory + default semantics
 │       │   ├── base.py         # LLMError + message sanitization
 │       │   └── exceptions.py   # one error class per category
-│       └── providers/          # provider abstraction
+│       └── providers/          # provider abstraction + adapters
 │           ├── __init__.py     # curated public exports
 │           ├── base.py         # LLMProvider protocol
-│           └── registry.py     # ProviderRegistry
+│           ├── registry.py     # ProviderRegistry
+│           └── gemini.py       # GeminiProvider (Phase 4)
 ├── tests/
-│   └── unit/
-│       ├── test_package.py     # foundation tests
-│       ├── contracts/          # contract, serialization, invariant tests
-│       └── providers/          # abstraction, registry, invariant tests
+│   ├── unit/
+│   │   ├── test_package.py     # foundation tests
+│   │   ├── contracts/          # contract, serialization, invariant tests
+│   │   └── providers/          # abstraction, registry, Gemini adapter tests
+│   └── integration/
+│       └── test_gemini_live.py # opt-in live test (marked `live`)
 ├── docs/
 │   ├── architecture.md
+│   ├── providers.md            # provider + Gemini adapter documentation
 │   └── roadmap.md
 ├── .github/
 │   └── workflows/
@@ -208,9 +236,13 @@ ruff format --check .
 mypy
 ```
 
-Tests are grouped by kind under `tests/`. Provider/API-calling tests will be
-marked `live` and skipped by default so normal development consumes no API
-quota.
+Tests are grouped by kind under `tests/`. The default suite is fully offline.
+Provider API-calling tests are marked `live` and skipped unless explicitly
+enabled, so normal development consumes no API quota:
+
+```bash
+RUN_GEMINI_INTEGRATION=1 GEMINI_API_KEY=... GEMINI_TEST_MODEL=... pytest -m live
+```
 
 ## Python version policy
 
@@ -223,17 +255,17 @@ quota.
 
 ## Current phase
 
-**Phase 3 — Provider Abstraction.** The `LLMProvider` protocol and a
-`ProviderRegistry`, plus a test-only fake provider proving the boundary works
-entirely offline. No concrete provider, retry, fallback, or orchestration
-behavior is implemented yet.
+**Phase 4 — Gemini Provider.** The first concrete adapter (`GeminiProvider`)
+implements the Phase 3 protocol end to end: request translation, response and
+usage normalization, and error normalization. Retry, fallback, routing, and
+orchestration are still unimplemented.
 
 ## Roadmap at a glance
 
 ```
 Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
-           → Contracts (Phase 2) → Provider abstraction (Phase 3, current)
-           → Gemini → Groq → Retry
+           → Contracts (Phase 2) → Provider abstraction (Phase 3)
+           → Gemini (Phase 4, current) → Groq → Retry
            → Error classification → Fallback → LangGraph orchestration
            → Structured output → Routing → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test

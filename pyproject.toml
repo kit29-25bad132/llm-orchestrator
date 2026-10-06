@@ -21,11 +21,14 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# Phase 2 adds Pydantic as the single runtime dependency: the contract layer
-# uses it for validation, immutability, and predictable serialization. Provider
-# SDKs, LangGraph, and HTTP clients stay out until the phases that consume them.
+# Runtime dependencies:
+#   pydantic      - contract validation, immutability, serialization (Phase 2)
+#   google-genai  - the official Google Gemini SDK (Phase 4, GeminiProvider only)
+# Provider SDKs and frameworks are added only when the adapter that needs them
+# lands; LangGraph and other vendors remain out until their phases.
 dependencies = [
     "pydantic>=2.9",
+    "google-genai>=2.0",
 ]
 
 [project.optional-dependencies]

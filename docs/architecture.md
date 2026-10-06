@@ -291,7 +291,7 @@ and `fallback_eligible` flags derived from the taxonomy.
 
 ```
 LLMProvider (Protocol)          # providers/base.py
-├── GeminiProvider              # Phase 4
+├── GeminiProvider              # implemented (providers/gemini.py)
 ├── GroqProvider                # Phase 5
 └── (future providers)          # no core changes
 ```
@@ -349,6 +349,10 @@ Providers translate native SDK exceptions into the normalized taxonomy (§7).
 Any unmapped exception becomes `UnknownProviderError` (category `UNKNOWN`) and
 its original cause is preserved. Providers must never leak raw SDK exception
 types to callers.
+
+`GeminiProvider` (Phase 4) implements this mapping from the SDK's structured
+fields (HTTP `code`, `status`, `message`) rather than message string matching,
+and it maps only; retry/fallback decisions remain with the reliability layer.
 
 ### 5.6 Registration and discovery
 

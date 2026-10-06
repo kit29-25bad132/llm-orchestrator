@@ -94,14 +94,19 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 ## Phase 4 — Gemini Provider
 
 - **O:** Add the first real adapter without touching the core.
-- **C:** `providers/gemini.py` (+ provider-specific error mapping).
-- **T:** Translate `LLMRequest` → Gemini call → `LLMResponse`; map Gemini errors
-  to the normalized taxonomy; declare model capabilities.
-- **X:** Provider contract test (offline, mocked); error-mapping table tests;
-  opt-in live smoke test (`@pytest.mark.live`).
-- **D:** Gemini passes the shared contract suite offline; core unchanged.
-- **!:** No routing/retry/fallback logic inside the provider; no core edits.
-- **Deliverable:** Working Gemini adapter.
+- **C:** `providers/gemini.py` (the only module allowed to import the Gemini
+  SDK).
+- **T:** Translate request/messages/generation parameters, normalize responses and
+  usage, and map Gemini errors to the taxonomy; inject the credential explicitly;
+  keep the SDK isolated to this module.
+- **X:** Offline adapter tests against a fake SDK client (translation,
+  normalization, error mapping, secret safety, no-retry/no-fallback) plus an
+  opt-in `live` integration test.
+- **D:** Gemini passes the offline suite; core contracts, abstraction, and
+  registry are unchanged; `docs/providers.md` documents it.
+- **!:** No routing/retry/fallback inside the provider; no environment reads; no
+  hidden model substitution; no core edits.
+- **Deliverable:** Working Gemini adapter + provider documentation.
 
 ---
 

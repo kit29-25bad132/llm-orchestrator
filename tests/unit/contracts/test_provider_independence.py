@@ -92,7 +92,11 @@ def test_declared_runtime_dependencies_are_minimal() -> None:
             continue
         name = re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].strip().lower()
         runtime.add(name)
-    assert runtime == {"pydantic"}, f"unexpected runtime dependencies: {sorted(runtime)}"
+    # google-genai is the Phase 4 Gemini adapter dependency; the contract layer
+    # itself never imports it (asserted by the import scan above).
+    assert runtime == {"pydantic", "google-genai"}, (
+        f"unexpected runtime dependencies: {sorted(runtime)}"
+    )
 
 
 def test_no_application_specific_names_in_contract_layer() -> None:
