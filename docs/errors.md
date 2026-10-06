@@ -53,7 +53,7 @@ back. `RetryPolicy.retry_on` can override the taxonomy per call.
 | `MODEL_UNAVAILABLE` | `ModelUnavailableError` | no | yes | Missing/deprecated/overloaded model — try *another* model, not again |
 | `PROVIDER_UNAVAILABLE` | `ProviderUnavailableError` | **yes** | yes | Provider-side 5xx/outage |
 | `MALFORMED_RESPONSE` | `MalformedResponseError` | **yes** | yes | Unparseable success payload; may be transient |
-| `STRUCTURED_OUTPUT_VALIDATION` | `StructuredOutputValidationError` | **yes** | yes | Reserved for the Phase 10 validation path |
+| `STRUCTURED_OUTPUT_VALIDATION` | `StructuredOutputValidationError` | **yes** | yes | Post-hoc Pydantic validation of response text (Phase 9) |
 | `CONFIGURATION` | `ConfigurationError` | no | no | Programmer/operator error — fail fast |
 | `UNKNOWN` | `UnknownProviderError` | no | yes | Conservative: never blindly retried |
 
@@ -120,5 +120,5 @@ semantics (proven by `test_cross_provider_consistency.py`).
 ## Intentionally deferred
 
 - Fallback execution (a later phase) — eligibility flags exist, no engine yet.
-- Routing (Phase 11), LangGraph orchestration, structured-output validation
-  (Phase 10), observability event emission, configuration loading.
+- Routing (Phase 11), structured-output validation beyond post-hoc Pydantic
+  checks (Phase 10+), observability event emission, configuration loading.

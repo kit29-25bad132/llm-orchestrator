@@ -8,16 +8,17 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 8 — LangGraph orchestration.**
+> **Status: Phase 9 — Structured output & validation.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
 > (`llm_orchestrator.providers`), two concrete adapters (**Gemini** in
 > `llm_orchestrator.providers.gemini`, **Groq** in
 > `llm_orchestrator.providers.groq`), a provider-agnostic **retry engine**
-> (`llm_orchestrator.reliability`), and a deterministic **LangGraph
-> orchestration** boundary (`llm_orchestrator.orchestration`). **No fallback,
-> routing, structured generation, or observability exists yet** — those consume
+> (`llm_orchestrator.reliability`), a deterministic **LangGraph
+> orchestration** boundary (`llm_orchestrator.orchestration`), and
+> **Pydantic-native structured-output validation** (`llm_orchestrator.structured`).
+> **No fallback, routing, or observability exists yet** — those consume
 > these boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
@@ -228,6 +229,37 @@ result = await orchestrator.run(request, model)  # OrchestrationResult
 
 See [`docs/orchestration.md`](docs/orchestration.md).
 
+## Structured output (Phase 9)
+
+`validate_structured_output` (`llm_orchestrator.structured`) validates
+normalized `LLMResponse` text against a caller-owned Pydantic model and
+returns the typed instance — pure local work, no model calls, no repair:
+
+```python
+from pydantic import BaseModel
+
+from llm_orchestrator.structured import validate_structured_output
+
+
+class ShipmentLabel(BaseModel):
+    recipient: str
+    zip_code: str
+
+
+label = validate_structured_output(response, ShipmentLabel)
+```
+
+- Accepts plain JSON or one complete ` ```json ` fenced block; prose,
+  truncated payloads, and wrong shapes fail explicitly.
+- Failures raise the normalized `StructuredOutputValidationError` with
+  provider/model/request context and safe diagnostics — never raw payloads
+  or secrets.
+- Extra fields follow the caller's own model configuration; provider
+  adapters still reject `response_schema` (native structured modes are
+  future work).
+
+See [`docs/structured-output.md`](docs/structured-output.md).
+
 ## Project structure
 
 ```
@@ -263,13 +295,17 @@ llm-orchestrator/
 │           ├── state.py        # OrchestrationState + initial_state
 │           ├── nodes.py        # execute_model node
 │           └── graph.py        # build_orchestration_graph + Orchestrator
+│       └── structured/         # structured-output validation (Phase 9)
+│           ├── __init__.py     # curated public exports
+│           └── pydantic_adapter.py  # validate_structured_output
 ├── tests/
 │   ├── unit/
 │   │   ├── test_package.py     # foundation tests
 │   │   ├── contracts/          # contract, serialization, invariant tests
 │   │   ├── providers/          # abstraction, registry, Gemini/Groq adapter tests
 │   │   ├── reliability/        # retry engine + backoff + invariant tests
-│   │   └── orchestration/      # state, nodes, graph + invariant tests
+│   │   ├── orchestration/      # state, nodes, graph + invariant tests
+│   │   └── structured/         # validation behavior + invariant tests
 │   └── integration/
 │       ├── test_gemini_live.py # opt-in live test (marked `live`)
 │       └── test_groq_live.py   # opt-in live test (marked `live`)
@@ -279,6 +315,7 @@ llm-orchestrator/
 │   ├── reliability.md          # retry engine documentation
 │   ├── errors.md               # normalized error classification model
 │   ├── orchestration.md        # LangGraph workflow documentation
+│   ├── structured-output.md    # structured-output validation documentation
 │   └── roadmap.md
 ├── .github/
 │   └── workflows/
@@ -351,12 +388,11 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 8 — LangGraph Orchestration.** `Orchestrator`
-(`llm_orchestrator.orchestration`) runs a single candidate through a
-deterministic `START → execute_model → END` workflow, delegating execution to
-providers, retries to `RetryEngine`, and failure semantics to normalized
-errors. Fallback, routing, structured output, and observability remain
-deferred.
+**Phase 9 — Structured Output & Validation.** `validate_structured_output`
+(`llm_orchestrator.structured`) validates normalized response text against
+caller-owned Pydantic models, returning typed instances or raising the
+normalized `StructuredOutputValidationError`. Fallback, routing, and
+observability remain deferred.
 
 ## Roadmap at a glance
 
@@ -364,8 +400,9 @@ deferred.
 Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
             → Contracts (Phase 2) → Provider abstraction (Phase 3)
               → Gemini (Phase 4) → Groq (Phase 5) → Retry (Phase 6)
-            → Error classification (Phase 7) → LangGraph orchestration (Phase 8, current)
-            → Fallback → Structured output → Routing → Observability → Testing
+            → Error classification (Phase 7) → LangGraph orchestration (Phase 8)
+            → Structured output & validation (Phase 9, current)
+            → Fallback → Routing → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test
            → Production hardening → Final E2E validation
 ```

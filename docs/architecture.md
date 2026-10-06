@@ -536,6 +536,11 @@ Termination: `finalize_success` / `finalize_failure` are the only terminal nodes
 
 ## 9. Structured output (Phase 0 Step 9)
 
+> Implementation status: the Pydantic validation step has landed early as
+> Phase 9 (`structured/` with `validate_structured_output`; see
+> `docs/structured-output.md`). The broader port below — `request_hint`,
+> `repair_instruction`, graph wiring — remains the target for later phases.
+
 ### Flow
 
 ```

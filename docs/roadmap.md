@@ -193,6 +193,12 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 ## Phase 10 — Structured Output
 
+> Status: the post-hoc validation slice has landed early as Phase 9
+> (`structured/` with `validate_structured_output`; see
+> `docs/structured-output.md`). What remains here is provider-native
+> structured modes (`request_hint`), bounded repair re-prompts, and wiring
+> validation into the graph once fallback/routing exist.
+
 - **O:** Provider-agnostic structured generation + schema validation.
 - **C:** `structured/base.py` (schema port), `structured/pydantic_adapter.py`.
 - **T:** Implement `request_hint`, `validate`, `repair_instruction`; wire
