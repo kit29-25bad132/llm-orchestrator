@@ -52,6 +52,7 @@ def test_error_exports_are_importable() -> None:
         "MalformedResponseError",
         "ModelUnavailableError",
         "NetworkError",
+        "ProviderNotRegisteredError",
         "ProviderUnavailableError",
         "RateLimitError",
         "StructuredOutputValidationError",

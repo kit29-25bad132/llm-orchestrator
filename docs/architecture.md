@@ -287,19 +287,28 @@ and `fallback_eligible` flags derived from the taxonomy.
 
 ## 5. Provider architecture (Phase 0 Step 5)
 
-### 5.1 Shape
+### 5.1 Shape (implemented in Phase 3 as a `Protocol`)
 
 ```
-BaseProvider (abstract)
-├── GeminiProvider
-└── GroqProvider     (+ future: OpenAI, Anthropic, Mistral — no core changes)
+LLMProvider (Protocol)          # providers/base.py
+├── GeminiProvider              # Phase 4
+├── GroqProvider                # Phase 5
+└── (future providers)          # no core changes
 ```
+
+Phase 3 chose structural typing over an `ABC`: there is no shared behavior to
+inherit yet, and a protocol keeps test doubles trivial. A shared `BaseProvider`
+can be added later if real shared behavior appears, without changing the
+contract.
 
 ### 5.2 Provider interface (contract)
 
+Implemented in `llm_orchestrator.providers.base`:
+
 ```python
-class Provider(Protocol):
-    name: ClassVar[str]                       # "gemini", "groq", ...
+@runtime_checkable
+class LLMProvider(Protocol):
+    provider_id: str                          # opaque, not an enum
 
     async def generate(
         self,
@@ -313,9 +322,12 @@ class Provider(Protocol):
 ```
 
 - `generate` performs exactly **one** attempt. It never loops, retries, or
-  falls back.
-- Adding a provider must require **only** a new `Provider` implementation plus a
-  registry entry — never edits to the orchestrator, routing, or reliability code.
+  falls back. The target `model` is passed explicitly because `LLMRequest`
+  deliberately never names a provider or model.
+- Adding a provider must require **only** a new `LLMProvider` implementation plus
+  a registry entry — never edits to the orchestrator, routing, or reliability
+  code.
+- The interface speaks only Phase 2 contracts; vendor SDK types never cross it.
 
 ### 5.3 Provider capabilities
 
@@ -340,8 +352,11 @@ types to callers.
 
 ### 5.6 Registration and discovery
 
-- **V1:** an explicit registry — `register_provider(name, factory)` — populated
-  at setup time. Simple, explicit, testable.
+- **Phase 3:** an explicit `ProviderRegistry` (`providers/registry.py`) mapping
+  provider id → provider instance. Callers construct providers and register
+  them; duplicate ids are rejected unless `replace=True`, and unknown ids raise
+  `ProviderNotRegisteredError`. The registry knows nothing about concrete
+  providers.
 - **Later:** optional discovery via Python entry points so third-party packages
   can register providers. The registry API is designed so discovery is additive.
 

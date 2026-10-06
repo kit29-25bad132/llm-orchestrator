@@ -52,8 +52,9 @@ markers = [
 line-length = 100
 target-version = "py311"
 src = ["src", "tests"]
-# Prose documentation is not Python; keep ruff away from the Phase 0 docs.
-extend-exclude = ["docs"]
+# Prose documentation is not Python; keep ruff away from markdown (its code
+# fences are illustrative, not sources ruff should rewrite).
+extend-exclude = ["docs", "README.md"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

@@ -82,6 +82,14 @@ class ConfigurationError(LLMError):
     category = ErrorCategory.CONFIGURATION
 
 
+class ProviderNotRegisteredError(ConfigurationError):
+    """No provider is registered under the requested identity.
+
+    A lookup miss is an operator/programmer mistake, so it inherits
+    ``CONFIGURATION`` semantics (never retried, never fallen back).
+    """
+
+
 class UnknownProviderError(LLMError):
     """Fallback classification for an unmapped provider failure."""
 

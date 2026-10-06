@@ -78,13 +78,14 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 ## Phase 3 — Provider Abstraction
 
 - **O:** Define how providers plug in, independent of any vendor.
-- **C:** `providers/base.py` (`Provider` protocol / `BaseProvider`),
-  `providers/registry.py`, `providers/fake.py` (test double).
-- **T:** Implement registry `register_provider`; implement `FakeProvider` with
-  scriptable success/failure; write a **shared provider contract test** every
-  adapter must pass.
-- **X:** Registry tests; `FakeProvider` behavior; contract-test harness.
-- **D:** A provider can be registered and invoked; the contract test is reusable.
+- **C:** `providers/base.py` (`LLMProvider` protocol), `providers/registry.py`
+  (`ProviderRegistry`), and a test-only `FakeProvider` under `tests/`.
+- **T:** Implement the protocol and registry (reject duplicates, raise on unknown
+  ids); implement `FakeProvider` with scriptable success/failure.
+- **X:** Protocol conformance, invocation, registry (duplicate/unknown/isolation),
+  error propagation, and AST-based provider-independence invariants.
+- **D:** A provider can be registered and invoked offline; no SDK, env, or
+  concrete provider is introduced.
 - **!:** No vendor SDK imports in core; providers perform exactly one attempt.
 - **Deliverable:** Provider seam + registry + fake provider + contract suite.
 

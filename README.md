@@ -8,12 +8,13 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 2 — core contracts.**
+> **Status: Phase 3 — provider abstraction.**
 > The package installs and exposes a provider-neutral **contract layer**
-> (`llm_orchestrator.contracts`) and a normalized **error taxonomy**
-> (`llm_orchestrator.errors`). **No providers, routing, retry, fallback,
-> structured generation, or orchestration exist yet** — those consume these
-> contracts in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
+> (`llm_orchestrator.contracts`), a normalized **error taxonomy**
+> (`llm_orchestrator.errors`), and the **provider abstraction + registry**
+> (`llm_orchestrator.providers`). **No concrete providers, routing, retry,
+> fallback, structured generation, or orchestration exist yet** — those consume
+> these boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
 
@@ -88,6 +89,42 @@ from llm_orchestrator.errors import ErrorCategory, LLMError, RateLimitError
 Pydantic is the single runtime dependency: it provides validation, immutability,
 and predictable serialization for the contracts.
 
+## Provider abstraction (Phase 3)
+
+Providers plug into a tiny, SDK-free boundary. A provider receives a normalized
+`LLMRequest` plus the target `ModelConfig` and returns a normalized `LLMResponse`
+— vendor SDK types never cross the boundary. The target model is passed
+explicitly because `LLMRequest` carries intent only and never names a provider.
+
+```python
+from llm_orchestrator.providers import LLMProvider, ProviderRegistry
+
+
+class MyProvider:  # satisfies LLMProvider structurally
+    provider_id = "my-vendor"
+
+    async def generate(self, request, model, *, timeout_s=None):
+        ...  # exactly one attempt; raise llm_orchestrator.errors types on failure
+
+    async def aclose(self) -> None:
+        ...
+
+
+registry = ProviderRegistry()
+registry.register(MyProvider())
+registry.get("my-vendor")
+```
+
+- `LLMProvider` is a `Protocol` (structural typing), so providers do not inherit
+  from the library and test doubles stay trivial.
+- `ProviderRegistry` maps provider id → instance. Duplicate ids are rejected
+  unless `replace=True`; unknown ids raise `ProviderNotRegisteredError`.
+- Capabilities stay **model-level** (`ModelCapabilities` on `ModelConfig`), so
+  there is a single source of truth; the provider interface is not a metadata
+  dump.
+- Concrete providers (Gemini, Groq, …) arrive in Phases 4–5; the registry never
+  special-cases a vendor.
+
 ## Project structure
 
 ```
@@ -103,15 +140,20 @@ llm-orchestrator/
 │       │   ├── models.py       # ModelConfig, ProviderConfig, capabilities
 │       │   ├── policies.py     # Retry/Fallback/Routing policy contracts
 │       │   └── results.py      # OrchestrationResult, AttemptRecord, ErrorInfo
-│       └── errors/             # normalized error taxonomy
-│           ├── __init__.py
-│           ├── categories.py   # ErrorCategory + default semantics
-│           ├── base.py         # LLMError + message sanitization
-│           └── exceptions.py   # one error class per category
+│       ├── errors/             # normalized error taxonomy
+│       │   ├── __init__.py
+│       │   ├── categories.py   # ErrorCategory + default semantics
+│       │   ├── base.py         # LLMError + message sanitization
+│       │   └── exceptions.py   # one error class per category
+│       └── providers/          # provider abstraction
+│           ├── __init__.py     # curated public exports
+│           ├── base.py         # LLMProvider protocol
+│           └── registry.py     # ProviderRegistry
 ├── tests/
 │   └── unit/
 │       ├── test_package.py     # foundation tests
-│       └── contracts/          # contract, serialization, invariant tests
+│       ├── contracts/          # contract, serialization, invariant tests
+│       └── providers/          # abstraction, registry, invariant tests
 ├── docs/
 │   ├── architecture.md
 │   └── roadmap.md
@@ -181,17 +223,17 @@ quota.
 
 ## Current phase
 
-**Phase 2 — Core Contracts.** Provider-neutral request/response/model/policy
-contracts and a normalized error taxonomy, with validation, immutability, and
-serialization. No provider, retry, fallback, or orchestration behavior is
-implemented yet.
+**Phase 3 — Provider Abstraction.** The `LLMProvider` protocol and a
+`ProviderRegistry`, plus a test-only fake provider proving the boundary works
+entirely offline. No concrete provider, retry, fallback, or orchestration
+behavior is implemented yet.
 
 ## Roadmap at a glance
 
 ```
 Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
-           → Contracts (Phase 2, current)
-           → Provider abstraction → Gemini → Groq → Retry
+           → Contracts (Phase 2) → Provider abstraction (Phase 3, current)
+           → Gemini → Groq → Retry
            → Error classification → Fallback → LangGraph orchestration
            → Structured output → Routing → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test
