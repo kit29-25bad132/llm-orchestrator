@@ -58,17 +58,20 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 - **O:** Implement the public vocabulary (design in `architecture.md` §4).
 - **C:** `contracts/` (messages, `LLMRequest`, `LLMResponse`, `Usage`,
-  `ModelConfig`, `ProviderConfig`, policies, `OrchestrationResult`,
-  `Provider` protocol, `CandidateRef`); `errors/` (taxonomy + base `LLMError`);
-  `config/` (env-backed settings).
-- **T:** Define immutable/pydantic data models; implement the error hierarchy and
-  default `retryable`/`fallback_eligible` flags from the taxonomy table.
-- **X:** Unit tests for model validation, defaults, error flags, config loading,
-  and missing-credential `ConfigurationError`.
-- **D:** Contracts import cleanly, are fully typed, and match the documented
-  design.
+  `ModelConfig`, `ProviderConfig`, policy contracts, `OrchestrationResult`,
+  `CandidateRef`, `ErrorInfo`); `errors/` (`ErrorCategory` + `LLMError`
+  hierarchy). `config/` (env-backed settings) moved to the phase that first
+  reads the environment, since the contract layer must not touch env vars; the
+  `Provider` protocol belongs to Phase 3.
+- **T:** Define frozen Pydantic data models with scoped validation; implement the
+  error hierarchy with per-category default `retryable`/`fallback_eligible`
+  flags and message sanitization.
+- **X:** Unit tests for validation, defaults, boundary cases, serialization
+  round-trips, error flags, provider-independence invariants; all offline.
+- **D:** Contracts install, import cleanly, are fully typed, and match the
+  documented design; `ruff`, `ruff format`, `mypy`, and `pytest` all pass.
 - **!:** No concrete provider, no retry/fallback execution, no LangGraph.
-- **Deliverable:** Frozen contracts + error taxonomy + config loader.
+- **Deliverable:** Frozen contracts + error taxonomy (no config loader yet).
 
 ---
 

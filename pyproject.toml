@@ -21,10 +21,12 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# Runtime dependencies are intentionally empty in Phase 1.
-# Contracts, providers, and orchestration are implemented in later phases, and
-# each dependency will be added only when the code that needs it lands.
-dependencies = []
+# Phase 2 adds Pydantic as the single runtime dependency: the contract layer
+# uses it for validation, immutability, and predictable serialization. Provider
+# SDKs, LangGraph, and HTTP clients stay out until the phases that consume them.
+dependencies = [
+    "pydantic>=2.9",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -61,3 +63,4 @@ python_version = "3.11"
 mypy_path = "src"
 strict = true
 files = ["src"]
+plugins = ["pydantic.mypy"]

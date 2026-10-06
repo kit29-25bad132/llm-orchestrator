@@ -163,8 +163,14 @@ arrive in the phase that needs them (see `docs/roadmap.md`).
 
 ## 4. Core abstractions (Phase 0 Step 4)
 
-These are the library's public vocabulary. They are described here; they are
-implemented starting in Phase 2 (contracts).
+These are the library's public vocabulary, implemented in Phase 2 as
+`llm_orchestrator.contracts`, with the error hierarchy in
+`llm_orchestrator.errors`.
+
+Two Phase-2 refinements to the text below: `request_id` is a first-class field
+on `LLMRequest` (rather than living inside `metadata`), and `LLMResponse`
+deliberately omits a raw provider payload so contracts stay provider-neutral and
+serializable.
 
 ### 4.1 `Message`
 
@@ -262,9 +268,11 @@ implemented starting in Phase 2 (contracts).
 
 - **Purpose:** the complete, observable outcome of one orchestration run.
 - **Required:** `request_id`, `succeeded`.
-- **Optional:** `response`, `error` (terminal `LLMError`), `candidates_tried`,
-  `attempts` (`AttemptRecord[]`), `retry_events`, `fallback_events`,
-  `validation`, `total_latency_ms`, `total_usage`.
+- **Optional:** `response`, `error` (an `ErrorInfo` snapshot rather than a live
+  exception, so results serialize), `candidates_tried`, `attempts`
+  (`AttemptRecord[]`), `total_latency_ms`. Retry/fallback counts are derived
+  properties. (`retry_events`, `fallback_events`, and `validation` arrive with
+  the observability and structured-output phases.)
 - **Ownership:** library.
 - **Why:** callers need one object that explains *what happened and why* without
   reading logs.
