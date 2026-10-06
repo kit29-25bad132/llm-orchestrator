@@ -8,12 +8,13 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 4 — Gemini provider.**
+> **Status: Phase 5 — Groq provider.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
-> (`llm_orchestrator.providers`), and a concrete **Gemini adapter**
-> (`llm_orchestrator.providers.gemini`). **No routing, retry, fallback,
+> (`llm_orchestrator.providers`), and two concrete adapters (**Gemini** in
+> `llm_orchestrator.providers.gemini`, **Groq** in
+> `llm_orchestrator.providers.groq`). **No routing, retry, fallback,
 > structured generation, or orchestration exists yet** — those consume these
 > boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
@@ -88,10 +89,11 @@ from llm_orchestrator.errors import ErrorCategory, LLMError, RateLimitError
 ```
 
 Runtime dependencies are deliberately minimal: **Pydantic** (contract
-validation, immutability, and predictable serialization) and **`google-genai`**
-(the official Gemini SDK, imported only inside the Gemini adapter).
+validation, immutability, and predictable serialization), **`google-genai`**
+(the official Gemini SDK, imported only inside the Gemini adapter), and
+**`groq`** (the official Groq SDK, imported only inside the Groq adapter).
 
-## Providers (Phase 3 abstraction, Phase 4 Gemini)
+## Providers (Phase 3 abstraction, Phases 4–5 adapters)
 
 Providers plug into a tiny, SDK-free boundary. A provider receives a normalized
 `LLMRequest` plus the target `ModelConfig` and returns a normalized `LLMResponse`
@@ -124,8 +126,8 @@ registry.get("my-vendor")
 - Capabilities stay **model-level** (`ModelCapabilities` on `ModelConfig`), so
   there is a single source of truth; the provider interface is not a metadata
   dump.
-- Gemini is implemented in `llm_orchestrator.providers.gemini`; Groq arrives in
-  Phase 5. The registry never special-cases a vendor.
+- Gemini is implemented in `llm_orchestrator.providers.gemini` and Groq in
+  `llm_orchestrator.providers.groq`. The registry never special-cases a vendor.
 
 ### Gemini (Phase 4)
 
@@ -148,6 +150,29 @@ Configuration is injected explicitly (the provider never reads the environment),
 the SDK client is created lazily and reused, Gemini errors are normalized into
 the library's error hierarchy, and import of the library never touches the SDK
 or the network. See [`docs/providers.md`](docs/providers.md).
+
+### Groq (Phase 5)
+
+The second concrete adapter, proving the abstraction needs no core changes for
+a structurally different vendor. It is the only module allowed to import the
+Groq SDK:
+
+```python
+from llm_orchestrator.contracts import LLMRequest, Message, MessageRole, ModelConfig
+from llm_orchestrator.providers.groq import GroqProvider
+
+provider = GroqProvider(api_key=os.environ["GROQ_API_KEY"])
+request = LLMRequest(messages=[Message(role=MessageRole.USER, content="Hi")])
+model = ModelConfig(provider="groq", model="<groq-model-id>")
+
+response = await provider.generate(request, model)  # one attempt, normalized LLMResponse
+await provider.aclose()
+```
+
+Groq speaks the OpenAI-compatible chat shape, so messages map one-to-one with
+ordering preserved; errors are normalized into the same hierarchy, and the
+SDK's own retries are disabled (`max_retries=0`) so the single-attempt contract
+holds. See [`docs/providers.md`](docs/providers.md).
 
 ## Project structure
 
@@ -173,17 +198,19 @@ llm-orchestrator/
 │           ├── __init__.py     # curated public exports
 │           ├── base.py         # LLMProvider protocol
 │           ├── registry.py     # ProviderRegistry
-│           └── gemini.py       # GeminiProvider (Phase 4)
+│           ├── gemini.py       # GeminiProvider (Phase 4)
+│           └── groq.py         # GroqProvider (Phase 5)
 ├── tests/
 │   ├── unit/
 │   │   ├── test_package.py     # foundation tests
 │   │   ├── contracts/          # contract, serialization, invariant tests
-│   │   └── providers/          # abstraction, registry, Gemini adapter tests
+│   │   └── providers/          # abstraction, registry, Gemini/Groq adapter tests
 │   └── integration/
-│       └── test_gemini_live.py # opt-in live test (marked `live`)
+│       ├── test_gemini_live.py # opt-in live test (marked `live`)
+│       └── test_groq_live.py   # opt-in live test (marked `live`)
 ├── docs/
 │   ├── architecture.md
-│   ├── providers.md            # provider + Gemini adapter documentation
+│   ├── providers.md            # provider + Gemini/Groq adapter documentation
 │   └── roadmap.md
 ├── .github/
 │   └── workflows/
@@ -242,6 +269,7 @@ enabled, so normal development consumes no API quota:
 
 ```bash
 RUN_GEMINI_INTEGRATION=1 GEMINI_API_KEY=... GEMINI_TEST_MODEL=... pytest -m live
+RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 ```
 
 ## Python version policy
@@ -255,9 +283,9 @@ RUN_GEMINI_INTEGRATION=1 GEMINI_API_KEY=... GEMINI_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 4 — Gemini Provider.** The first concrete adapter (`GeminiProvider`)
-implements the Phase 3 protocol end to end: request translation, response and
-usage normalization, and error normalization. Retry, fallback, routing, and
+**Phase 5 — Groq Provider.** The second concrete adapter (`GroqProvider`)
+implements the same Phase 3 protocol, proving the abstraction needs no core
+changes for a structurally different vendor. Retry, fallback, routing, and
 orchestration are still unimplemented.
 
 ## Roadmap at a glance
@@ -265,7 +293,7 @@ orchestration are still unimplemented.
 ```
 Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
            → Contracts (Phase 2) → Provider abstraction (Phase 3)
-           → Gemini (Phase 4, current) → Groq → Retry
+            → Gemini (Phase 4) → Groq (Phase 5, current) → Retry
            → Error classification → Fallback → LangGraph orchestration
            → Structured output → Routing → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test

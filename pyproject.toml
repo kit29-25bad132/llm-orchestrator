@@ -24,11 +24,13 @@ classifiers = [
 # Runtime dependencies:
 #   pydantic      - contract validation, immutability, serialization (Phase 2)
 #   google-genai  - the official Google Gemini SDK (Phase 4, GeminiProvider only)
+#   groq          - the official Groq SDK (Phase 5, GroqProvider only)
 # Provider SDKs and frameworks are added only when the adapter that needs them
 # lands; LangGraph and other vendors remain out until their phases.
 dependencies = [
     "pydantic>=2.9",
     "google-genai>=2.0",
+    "groq>=0.11",
 ]
 
 [project.optional-dependencies]

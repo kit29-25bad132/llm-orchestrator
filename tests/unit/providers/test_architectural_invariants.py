@@ -133,7 +133,7 @@ def test_no_langgraph_anywhere_in_the_library() -> None:
         )
 
 
-def test_gemini_is_the_only_concrete_provider() -> None:
+def test_gemini_and_groq_are_the_approved_concrete_providers() -> None:
     found = {path.name for path in PROVIDERS_DIR.rglob("*.py")} & {
         "gemini.py",
         "groq.py",
@@ -141,7 +141,7 @@ def test_gemini_is_the_only_concrete_provider() -> None:
         "anthropic.py",
         "mistral.py",
     }
-    assert found == {"gemini.py"}
+    assert found == {"gemini.py", "groq.py"}
 
 
 def test_only_the_gemini_module_imports_the_sdk() -> None:
@@ -153,11 +153,21 @@ def test_only_the_gemini_module_imports_the_sdk() -> None:
             assert "google" not in roots, f"{path.name} imports the Gemini SDK outside the adapter"
 
 
-def test_importing_the_library_does_not_import_the_gemini_sdk() -> None:
+def test_only_the_groq_module_imports_the_sdk() -> None:
+    for path in ALL_SOURCE_FILES:
+        roots = _imported_module_roots(path)
+        if path.name == "groq.py":
+            assert "groq" in roots, "the Groq adapter must import the SDK"
+        else:
+            assert "groq" not in roots, f"{path.name} imports the Groq SDK outside the adapter"
+
+
+def test_importing_the_library_does_not_import_provider_sdks() -> None:
     code = (
         "import sys, llm_orchestrator, llm_orchestrator.contracts, "
         "llm_orchestrator.errors, llm_orchestrator.providers; "
-        "assert 'google.genai' not in sys.modules, 'SDK imported eagerly'"
+        "assert 'google.genai' not in sys.modules, 'Gemini SDK imported eagerly'; "
+        "assert 'groq' not in sys.modules, 'Groq SDK imported eagerly'"
     )
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
@@ -184,6 +194,6 @@ def test_declared_runtime_dependencies_still_minimal() -> None:
             continue
         name = re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].strip().lower()
         runtime.add(name)
-    assert runtime == {"pydantic", "google-genai"}, (
+    assert runtime == {"pydantic", "google-genai", "groq"}, (
         f"unexpected runtime dependencies: {sorted(runtime)}"
     )
