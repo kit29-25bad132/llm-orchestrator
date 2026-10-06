@@ -125,11 +125,14 @@ def test_no_environment_access_in_providers_package() -> None:
         assert not leaked_attrs, f"{path.name} accesses {sorted(leaked_attrs)}"
 
 
-def test_no_langgraph_anywhere_in_the_library() -> None:
+def test_langgraph_is_confined_to_the_orchestration_layer() -> None:
+    orchestration_dir = PACKAGE_ROOT / "orchestration"
     for path in ALL_SOURCE_FILES:
         roots = _imported_module_roots(path)
+        if orchestration_dir in path.parents:
+            continue
         assert not (roots & {"langgraph", "langchain", "langchain_core"}), (
-            f"{path.name} imports an orchestration framework"
+            f"{path.name} imports an orchestration framework outside orchestration/"
         )
 
 
@@ -194,6 +197,6 @@ def test_declared_runtime_dependencies_still_minimal() -> None:
             continue
         name = re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].strip().lower()
         runtime.add(name)
-    assert runtime == {"pydantic", "google-genai", "groq"}, (
+    assert runtime == {"pydantic", "google-genai", "groq", "langgraph"}, (
         f"unexpected runtime dependencies: {sorted(runtime)}"
     )

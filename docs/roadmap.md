@@ -169,6 +169,12 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 ## Phase 9 — LangGraph Orchestration
 
+> Status: the single-candidate slice has landed early as Phase 8
+> (`orchestration/` with `START → execute_model → END`; see
+> `docs/orchestration.md`). What remains here is the multi-node control flow:
+> candidate planning, validation, `decide` edges, and fallback sequencing once
+> those phases exist.
+
 - **O:** Express the run loop as a LangGraph graph (design in §8).
 - **C:** `orchestration/graph.py`, `orchestration/state.py`,
   `orchestration/runner.py`.

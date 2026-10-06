@@ -13,7 +13,7 @@ RetryEngine.generate(provider, request, model)   ← up to max_attempts tries
    LLMResponse
 ```
 
-Retry means *try again*; fallback (a *different* provider/model) is Phase 8
+Retry means *try again*; fallback (a *different* provider/model) is a later phase
 and does not exist yet. The engine never switches candidates.
 
 ---
@@ -80,6 +80,6 @@ interfere. The request object is never mutated.
 
 ## Intentionally deferred
 
-- Fallback to another candidate (Phase 8) — exhaustion raises, never switches.
+- Fallback to another candidate (a later phase) — exhaustion raises, never switches.
 - Routing/candidate ordering (Phase 11), structured output (Phase 10),
   observability events (Phase 12), configuration loading (Phase 12).

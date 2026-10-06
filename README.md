@@ -8,16 +8,17 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 6 — Retry engine.**
+> **Status: Phase 8 — LangGraph orchestration.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
 > (`llm_orchestrator.providers`), two concrete adapters (**Gemini** in
 > `llm_orchestrator.providers.gemini`, **Groq** in
-> `llm_orchestrator.providers.groq`), and a provider-agnostic **retry engine**
-> (`llm_orchestrator.reliability`). **No routing, fallback, structured
-> generation, or orchestration exists yet** — those consume these boundaries in
-> later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
+> `llm_orchestrator.providers.groq`), a provider-agnostic **retry engine**
+> (`llm_orchestrator.reliability`), and a deterministic **LangGraph
+> orchestration** boundary (`llm_orchestrator.orchestration`). **No fallback,
+> routing, structured generation, or observability exists yet** — those consume
+> these boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
 
@@ -199,9 +200,33 @@ response = await engine.generate(provider, request, model)  # same candidate, re
 - Waits follow exponential backoff capped at `max_backoff_s`, with the
   policy's jitter strategy and honoring `RateLimitError.retry_after_s`.
 - Exhaustion re-raises the original normalized error (with `attempt` stamped),
-  never a replacement — and never falls back to another provider (Phase 8).
+  never a replacement — and never falls back to another provider (a later phase).
 
 See [`docs/reliability.md`](docs/reliability.md).
+
+## Orchestration (Phase 8)
+
+`Orchestrator` (`llm_orchestrator.orchestration`) runs one model candidate
+through a deterministic LangGraph workflow (`START → execute_model → END`).
+The graph owns workflow state and transitions; providers, retries, and error
+semantics stay in their existing layers.
+
+```python
+from llm_orchestrator.orchestration import Orchestrator
+
+orchestrator = Orchestrator(registry, retry_engine)  # graph compiled once
+result = await orchestrator.run(request, model)  # OrchestrationResult
+```
+
+- The `execute_model` node resolves the provider from the registry and makes
+  exactly one `RetryEngine.generate` call — no reimplemented retries.
+- Success yields `OrchestrationResult` with the `LLMResponse`; normalized
+  `LLMError` yields one with a sanitized `ErrorInfo`. Bugs and cancellation
+  propagate untouched.
+- One candidate only: no fallback, routing, validation, or multi-agent
+  behavior. The state model is the extension point for those phases.
+
+See [`docs/orchestration.md`](docs/orchestration.md).
 
 ## Project structure
 
@@ -233,12 +258,18 @@ llm-orchestrator/
 │           ├── __init__.py     # curated public exports
 │           ├── retry.py        # RetryEngine
 │           └── backoff.py      # backoff + jitter math
+│       └── orchestration/      # LangGraph workflow (Phase 8)
+│           ├── __init__.py     # curated public exports (Orchestrator)
+│           ├── state.py        # OrchestrationState + initial_state
+│           ├── nodes.py        # execute_model node
+│           └── graph.py        # build_orchestration_graph + Orchestrator
 ├── tests/
 │   ├── unit/
 │   │   ├── test_package.py     # foundation tests
 │   │   ├── contracts/          # contract, serialization, invariant tests
 │   │   ├── providers/          # abstraction, registry, Gemini/Groq adapter tests
-│   │   └── reliability/        # retry engine + backoff + invariant tests
+│   │   ├── reliability/        # retry engine + backoff + invariant tests
+│   │   └── orchestration/      # state, nodes, graph + invariant tests
 │   └── integration/
 │       ├── test_gemini_live.py # opt-in live test (marked `live`)
 │       └── test_groq_live.py   # opt-in live test (marked `live`)
@@ -247,6 +278,7 @@ llm-orchestrator/
 │   ├── providers.md            # provider + Gemini/Groq adapter documentation
 │   ├── reliability.md          # retry engine documentation
 │   ├── errors.md               # normalized error classification model
+│   ├── orchestration.md        # LangGraph workflow documentation
 │   └── roadmap.md
 ├── .github/
 │   └── workflows/
@@ -319,19 +351,21 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 6 — Retry Engine.** `RetryEngine` (`llm_orchestrator.reliability`)
-retries the *same* provider/model/request with exponential backoff, jitter,
-and `Retry-After` support, driven by the normalized error taxonomy. Fallback,
-routing, and orchestration are still unimplemented.
+**Phase 8 — LangGraph Orchestration.** `Orchestrator`
+(`llm_orchestrator.orchestration`) runs a single candidate through a
+deterministic `START → execute_model → END` workflow, delegating execution to
+providers, retries to `RetryEngine`, and failure semantics to normalized
+errors. Fallback, routing, structured output, and observability remain
+deferred.
 
 ## Roadmap at a glance
 
 ```
 Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
-           → Contracts (Phase 2) → Provider abstraction (Phase 3)
-             → Gemini (Phase 4) → Groq (Phase 5) → Retry (Phase 6, current)
-           → Error classification → Fallback → LangGraph orchestration
-           → Structured output → Routing → Observability → Testing
+            → Contracts (Phase 2) → Provider abstraction (Phase 3)
+              → Gemini (Phase 4) → Groq (Phase 5) → Retry (Phase 6)
+            → Error classification (Phase 7) → LangGraph orchestration (Phase 8, current)
+            → Fallback → Structured output → Routing → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test
            → Production hardening → Final E2E validation
 ```

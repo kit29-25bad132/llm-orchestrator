@@ -119,6 +119,6 @@ semantics (proven by `test_cross_provider_consistency.py`).
 
 ## Intentionally deferred
 
-- Fallback execution (Phase 8) — eligibility flags exist, no engine yet.
+- Fallback execution (a later phase) — eligibility flags exist, no engine yet.
 - Routing (Phase 11), LangGraph orchestration, structured-output validation
   (Phase 10), observability event emission, configuration loading.

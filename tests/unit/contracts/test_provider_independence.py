@@ -92,10 +92,11 @@ def test_declared_runtime_dependencies_are_minimal() -> None:
             continue
         name = re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].strip().lower()
         runtime.add(name)
-    # google-genai is the Phase 4 Gemini adapter dependency and groq is the
-    # Phase 5 Groq adapter dependency; the contract layer itself never imports
-    # either (asserted by the import scan above).
-    assert runtime == {"pydantic", "google-genai", "groq"}, (
+    # google-genai is the Phase 4 Gemini adapter dependency, groq is the
+    # Phase 5 Groq adapter dependency, and langgraph is the Phase 8
+    # orchestration dependency; the contract layer itself never imports
+    # any of them (asserted by the import scan above).
+    assert runtime == {"pydantic", "google-genai", "groq", "langgraph"}, (
         f"unexpected runtime dependencies: {sorted(runtime)}"
     )
 

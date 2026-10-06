@@ -3,7 +3,7 @@
 A :class:`RetryEngine` wraps one :class:`LLMProvider` call with bounded,
 policy-driven retries of the *same* provider, *same* model, and *same*
 request. It never switches provider or model, never reorders candidates, and
-never performs fallback — that is Phase 8's job.
+never performs fallback — that is a later phase's job.
 
 Placement in the stack::
 

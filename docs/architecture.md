@@ -473,6 +473,12 @@ Subclasses (one per category):
 semantics (§6) exist independently; LangGraph is the V1 way to express them. The
 core must remain usable if the engine is replaced.
 
+> Implementation status: the single-candidate slice has landed
+> (`orchestration/` with `START → execute_model → END`, delegating to
+> `ProviderRegistry` and `RetryEngine`; see `docs/orchestration.md`). The
+> multi-node vision below — routing, fallback, validation nodes and the
+> `decide` edges — remains the target for later phases.
+
 ### State
 
 ```python
