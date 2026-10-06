@@ -8,15 +8,16 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 5 — Groq provider.**
+> **Status: Phase 6 — Retry engine.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
-> (`llm_orchestrator.providers`), and two concrete adapters (**Gemini** in
+> (`llm_orchestrator.providers`), two concrete adapters (**Gemini** in
 > `llm_orchestrator.providers.gemini`, **Groq** in
-> `llm_orchestrator.providers.groq`). **No routing, retry, fallback,
-> structured generation, or orchestration exists yet** — those consume these
-> boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
+> `llm_orchestrator.providers.groq`), and a provider-agnostic **retry engine**
+> (`llm_orchestrator.reliability`). **No routing, fallback, structured
+> generation, or orchestration exists yet** — those consume these boundaries in
+> later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
 
@@ -174,6 +175,31 @@ ordering preserved; errors are normalized into the same hierarchy, and the
 SDK's own retries are disabled (`max_retries=0`) so the single-attempt contract
 holds. See [`docs/providers.md`](docs/providers.md).
 
+## Reliability — retry (Phase 6)
+
+`RetryEngine` (`llm_orchestrator.reliability`) wraps any `LLMProvider` with
+bounded retries of the **same** provider, model, and request. It is fully
+provider-agnostic: it decides from normalized `LLMError` retryability only.
+
+```python
+from llm_orchestrator.contracts import RetryPolicy
+from llm_orchestrator.reliability import RetryEngine
+
+engine = RetryEngine(RetryPolicy(max_attempts=3, initial_backoff_s=0.5))
+response = await engine.generate(provider, request, model)  # same candidate, retried
+```
+
+- `max_attempts` counts total provider attempts (`1` = one attempt, no retry).
+- Only retryable errors are retried (rate limits, timeouts, network and
+  provider outages); auth, invalid-request, and unknown failures propagate at
+  once, as do unexpected exceptions and cancellation.
+- Waits follow exponential backoff capped at `max_backoff_s`, with the
+  policy's jitter strategy and honoring `RateLimitError.retry_after_s`.
+- Exhaustion re-raises the original normalized error (with `attempt` stamped),
+  never a replacement — and never falls back to another provider (Phase 8).
+
+See [`docs/reliability.md`](docs/reliability.md).
+
 ## Project structure
 
 ```
@@ -200,17 +226,23 @@ llm-orchestrator/
 │           ├── registry.py     # ProviderRegistry
 │           ├── gemini.py       # GeminiProvider (Phase 4)
 │           └── groq.py         # GroqProvider (Phase 5)
+│       └── reliability/        # retry engine (Phase 6)
+│           ├── __init__.py     # curated public exports
+│           ├── retry.py        # RetryEngine
+│           └── backoff.py      # backoff + jitter math
 ├── tests/
 │   ├── unit/
 │   │   ├── test_package.py     # foundation tests
 │   │   ├── contracts/          # contract, serialization, invariant tests
-│   │   └── providers/          # abstraction, registry, Gemini/Groq adapter tests
+│   │   ├── providers/          # abstraction, registry, Gemini/Groq adapter tests
+│   │   └── reliability/        # retry engine + backoff + invariant tests
 │   └── integration/
 │       ├── test_gemini_live.py # opt-in live test (marked `live`)
 │       └── test_groq_live.py   # opt-in live test (marked `live`)
 ├── docs/
 │   ├── architecture.md
 │   ├── providers.md            # provider + Gemini/Groq adapter documentation
+│   ├── reliability.md          # retry engine documentation
 │   └── roadmap.md
 ├── .github/
 │   └── workflows/
@@ -283,17 +315,17 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 5 — Groq Provider.** The second concrete adapter (`GroqProvider`)
-implements the same Phase 3 protocol, proving the abstraction needs no core
-changes for a structurally different vendor. Retry, fallback, routing, and
-orchestration are still unimplemented.
+**Phase 6 — Retry Engine.** `RetryEngine` (`llm_orchestrator.reliability`)
+retries the *same* provider/model/request with exponential backoff, jitter,
+and `Retry-After` support, driven by the normalized error taxonomy. Fallback,
+routing, and orchestration are still unimplemented.
 
 ## Roadmap at a glance
 
 ```
 Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
            → Contracts (Phase 2) → Provider abstraction (Phase 3)
-            → Gemini (Phase 4) → Groq (Phase 5, current) → Retry
+             → Gemini (Phase 4) → Groq (Phase 5) → Retry (Phase 6, current)
            → Error classification → Fallback → LangGraph orchestration
            → Structured output → Routing → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test
