@@ -8,7 +8,7 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 9 — Structured output & validation.**
+> **Status: Phase 10 — Routing & model selection.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
@@ -16,9 +16,10 @@ ReviewIQ) bring their own prompts, schemas, and business logic.
 > `llm_orchestrator.providers.gemini`, **Groq** in
 > `llm_orchestrator.providers.groq`), a provider-agnostic **retry engine**
 > (`llm_orchestrator.reliability`), a deterministic **LangGraph
-> orchestration** boundary (`llm_orchestrator.orchestration`), and
-> **Pydantic-native structured-output validation** (`llm_orchestrator.structured`).
-> **No fallback, routing, or observability exists yet** — those consume
+> orchestration** boundary (`llm_orchestrator.orchestration`),
+> **Pydantic-native structured-output validation** (`llm_orchestrator.structured`),
+> and deterministic **routing & model selection** (`llm_orchestrator.routing`).
+> **No fallback or observability exists yet** — those consume
 > these boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
@@ -205,6 +206,45 @@ response = await engine.generate(provider, request, model)  # same candidate, re
 
 See [`docs/reliability.md`](docs/reliability.md).
 
+## Routing & model selection (Phase 10)
+
+`ModelRouter` (`llm_orchestrator.routing`) answers one question — **which
+model should we attempt first?** — by applying a declarative
+`StaticRoutingPolicy` to an explicit `ModelConfig` candidate set. It returns
+exactly one initial candidate and never calls providers, retries, or falls
+back:
+
+```python
+from llm_orchestrator.contracts import ModelConfig
+from llm_orchestrator.routing import ModelRouter, StaticRoutingPolicy
+
+candidates = [
+    ModelConfig(provider="provider-a", model="model-x"),
+    ModelConfig(provider="provider-b", model="model-y"),
+]
+
+router = ModelRouter(StaticRoutingPolicy(preferred_provider="provider-a"))
+selected = router.select(request, candidates)  # a ModelConfig
+```
+
+- Eligibility filtering first (`enabled`, allowlists, explicit-model
+  requirement, required capabilities — a request carrying
+  `response_schema` requires `structured_output` — minimum context), then
+  deterministic ranking (explicit match, provider/model preference,
+  estimated cost when asked with explicit token estimates, `quality_tier`
+  priority, lexicographic tiebreak).
+- An explicit `required_model` is never silently substituted; a missing or
+  ineligible requirement raises `ConfigurationError` (no retry, no
+  fallback) instead of picking something else.
+- Cost comparison uses only configured `ModelPricing` plus the policy's own
+  token estimates — never invented counts, never post-generation usage.
+- `router.explain(...)` returns a `RoutingDecision` (selected, eligible,
+  policy, `SelectionReason`) for debugging and tests. The selected
+  candidate flows into the existing path unchanged:
+  `router.select(...)` → `RetryEngine.generate(...)` → provider.
+
+See [`docs/routing.md`](docs/routing.md).
+
 ## Orchestration (Phase 8)
 
 `Orchestrator` (`llm_orchestrator.orchestration`) runs one model candidate
@@ -290,6 +330,10 @@ llm-orchestrator/
 │           ├── __init__.py     # curated public exports
 │           ├── retry.py        # RetryEngine
 │           └── backoff.py      # backoff + jitter math
+│       └── routing/            # routing & model selection (Phase 10)
+│           ├── __init__.py     # curated public exports
+│           ├── static.py       # StaticRoutingPolicy + estimate_cost
+│           └── router.py       # ModelRouter + RoutingDecision
 │       └── orchestration/      # LangGraph workflow (Phase 8)
 │           ├── __init__.py     # curated public exports (Orchestrator)
 │           ├── state.py        # OrchestrationState + initial_state
@@ -304,6 +348,7 @@ llm-orchestrator/
 │   │   ├── contracts/          # contract, serialization, invariant tests
 │   │   ├── providers/          # abstraction, registry, Gemini/Groq adapter tests
 │   │   ├── reliability/        # retry engine + backoff + invariant tests
+│   │   ├── routing/            # static routing + router + invariant tests
 │   │   ├── orchestration/      # state, nodes, graph + invariant tests
 │   │   └── structured/         # validation behavior + invariant tests
 │   └── integration/
@@ -313,6 +358,7 @@ llm-orchestrator/
 │   ├── architecture.md
 │   ├── providers.md            # provider + Gemini/Groq adapter documentation
 │   ├── reliability.md          # retry engine documentation
+│   ├── routing.md              # routing & model selection documentation
 │   ├── errors.md               # normalized error classification model
 │   ├── orchestration.md        # LangGraph workflow documentation
 │   ├── structured-output.md    # structured-output validation documentation
@@ -388,11 +434,11 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 9 — Structured Output & Validation.** `validate_structured_output`
-(`llm_orchestrator.structured`) validates normalized response text against
-caller-owned Pydantic models, returning typed instances or raising the
-normalized `StructuredOutputValidationError`. Fallback, routing, and
-observability remain deferred.
+**Phase 10 — Routing & Model Selection.** `ModelRouter` + `StaticRoutingPolicy`
+(`llm_orchestrator.routing`) deterministically select the initial `ModelConfig`
+candidate — explicit-model, provider preference, capability, priority, and
+truthful cost-aware ranking — returning one candidate into the existing
+retry/provider path. Fallback and observability remain deferred.
 
 ## Roadmap at a glance
 
@@ -401,8 +447,9 @@ Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
             → Contracts (Phase 2) → Provider abstraction (Phase 3)
               → Gemini (Phase 4) → Groq (Phase 5) → Retry (Phase 6)
             → Error classification (Phase 7) → LangGraph orchestration (Phase 8)
-            → Structured output & validation (Phase 9, current)
-            → Fallback → Routing → Observability → Testing
+             → Structured output & validation (Phase 9)
+             → Routing & model selection (Phase 10, current)
+             → Fallback → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test
            → Production hardening → Final E2E validation
 ```

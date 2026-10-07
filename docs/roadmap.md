@@ -216,6 +216,12 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 ## Phase 11 — Routing
 
+> Status: the static/explicit slice has landed as Phase 10 (`routing/` with
+> `StaticRoutingPolicy`, `ModelRouter`, and deterministic capability/cost/
+> priority selection; see `docs/routing.md`). What remains here is the
+> `RoutingContext` seam for future adaptive signals (health/latency/cost)
+> and orchestrator wiring once fallback exists.
+
 - **O:** Select and order candidates.
 - **C:** `routing/static.py` (+ `RoutingPolicy` implementations).
 - **T:** Implement explicit/static ordering and capability filtering; define the
