@@ -475,9 +475,14 @@ core must remain usable if the engine is replaced.
 
 > Implementation status: the single-candidate slice has landed
 > (`orchestration/` with `START → execute_model → END`, delegating to
-> `ProviderRegistry` and `RetryEngine`; see `docs/orchestration.md`). The
-> multi-node vision below — routing, fallback, validation nodes and the
-> `decide` edges — remains the target for later phases.
+> `ProviderRegistry` and `RetryEngine`; see `docs/orchestration.md`), and
+> candidate-level fallback has landed as a reusable service around the retry
+> engine (`reliability/fallback.py` with `FallbackExecutor`; see
+> `docs/fallback.md`) — deliberately *not* as additional graph nodes, since a
+> thin deterministic service preserves the Routing → Retry → Fallback
+> separation without graph ceremony. The remaining multi-node vision below —
+> validation nodes and the `decide` edges — remains the target for later
+> phases.
 
 ### State
 

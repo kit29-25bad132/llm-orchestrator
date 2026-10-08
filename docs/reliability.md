@@ -1,4 +1,4 @@
-# Reliability — Retry (Phase 6)
+# Reliability — Retry + Fallback (Phases 6, 11)
 
 `RetryEngine` (`llm_orchestrator.reliability`) retries a failed provider call
 against the **same** provider, model, and request. It is provider-agnostic: it
@@ -13,8 +13,19 @@ RetryEngine.generate(provider, request, model)   ← up to max_attempts tries
    LLMResponse
 ```
 
-Retry means *try again*; fallback (a *different* provider/model) is a later phase
-and does not exist yet. The engine never switches candidates.
+Retry means *try again*; fallback (a *different* provider/model) is owned by
+`FallbackExecutor` in the same package (Phase 11; see `docs/fallback.md`).
+The retry engine itself never switches candidates: exhaustion re-raises the
+terminal normalized error, and the fallback layer decides what happens next.
+
+## Fallback (Phase 11)
+
+Candidate-level fallback lives beside retry in `llm_orchestrator.reliability`
+but stays strictly separated: `FallbackExecutor.run(request, candidates, …)`
+attempts the routing-ordered plan in order, running each candidate through the
+injected `RetryEngine` and advancing only on fallback-eligible terminal
+failures, bounded by `FallbackPolicy.max_fallbacks`. Full semantics, plan
+rules, and guarantees are documented in [`docs/fallback.md`](fallback.md).
 
 ---
 
@@ -80,6 +91,7 @@ interfere. The request object is never mutated.
 
 ## Intentionally deferred
 
-- Fallback to another candidate (a later phase) — exhaustion raises, never switches.
-- Routing/candidate ordering (Phase 11), structured output (Phase 10),
-  observability events (Phase 12), configuration loading (Phase 12).
+- Routing/candidate ordering is owned by Phase 10 (`docs/routing.md`); the
+  fallback plan consumes that order and never reselects.
+- Structured output (Phase 10), observability events (Phase 12),
+  configuration loading (Phase 12).

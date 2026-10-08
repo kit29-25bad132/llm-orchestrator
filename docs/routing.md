@@ -33,9 +33,10 @@ selected = router.select(request, candidates)  # a ModelConfig
 ## What routing is not
 
 - **Not retry.** Retry re-attempts the *same* candidate (`RetryEngine`).
-- **Not fallback.** Moving to another candidate after a failure belongs to a
-  future phase. The router returns exactly one candidate and never executes
-  any of them.
+- **Not fallback.** Moving to another candidate after a failure belongs to
+  `FallbackExecutor` (Phase 11, `docs/fallback.md`). The router returns
+  exactly one initial candidate and never executes any of them; the fallback
+  layer consumes the routing order.
 - **Not health-aware.** No pings, no latency probes, no telemetry. Health
   signals may arrive later via `RoutingContext.metadata`; the static policy
   does not read them.
@@ -48,7 +49,7 @@ Separation, end to end:
 ```text
 Routing  -> choose the initial candidate (this phase)
 Retry    -> retry the chosen candidate when retryable (Phase 6, unchanged)
-Fallback -> move to another candidate after an eligible failure (future phase)
+Fallback -> move to another candidate after an eligible failure (Phase 11)
 ```
 
 ## Candidates

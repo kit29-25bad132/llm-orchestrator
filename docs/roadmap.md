@@ -154,6 +154,13 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 ## Phase 8 — Fallback
 
+> Status: the candidate-level execution slice has landed
+> (`reliability/fallback.py` with `FallbackExecutor`, a reusable service
+> around `RetryEngine`; see `docs/fallback.md`). It consumes routing order,
+> retries each candidate to a terminal outcome, advances only on
+> fallback-eligible normalized failures bounded by `max_fallbacks`, and leaves
+> the single-candidate LangGraph workflow unchanged.
+
 - **O:** Move execution to another candidate when policy requires.
 - **C:** `reliability/fallback.py`.
 - **T:** Implement `FallbackPolicy` evaluation: exhaust retries per candidate,

@@ -8,19 +8,20 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 10 — Routing & model selection.**
+> **Status: Phase 11 — Fallback execution.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
 > (`llm_orchestrator.providers`), two concrete adapters (**Gemini** in
 > `llm_orchestrator.providers.gemini`, **Groq** in
 > `llm_orchestrator.providers.groq`), a provider-agnostic **retry engine**
-> (`llm_orchestrator.reliability`), a deterministic **LangGraph
-> orchestration** boundary (`llm_orchestrator.orchestration`),
+> plus candidate-level **fallback execution** (`llm_orchestrator.reliability`),
+> a deterministic **LangGraph orchestration** boundary
+> (`llm_orchestrator.orchestration`),
 > **Pydantic-native structured-output validation** (`llm_orchestrator.structured`),
 > and deterministic **routing & model selection** (`llm_orchestrator.routing`).
-> **No fallback or observability exists yet** — those consume
-> these boundaries in later phases (see [`docs/roadmap.md`](docs/roadmap.md)).
+> **Observability is deferred** — runs already preserve the attempt history it
+> will consume (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
 
@@ -202,9 +203,36 @@ response = await engine.generate(provider, request, model)  # same candidate, re
 - Waits follow exponential backoff capped at `max_backoff_s`, with the
   policy's jitter strategy and honoring `RateLimitError.retry_after_s`.
 - Exhaustion re-raises the original normalized error (with `attempt` stamped),
-  never a replacement — and never falls back to another provider (a later phase).
+  never a replacement. Moving to another candidate after that terminal failure
+  is fallback's job (Phase 11, below), never the retry engine's.
 
 See [`docs/reliability.md`](docs/reliability.md).
+
+## Fallback execution (Phase 11)
+
+`FallbackExecutor` (`llm_orchestrator.reliability`) moves execution to another
+candidate only after `RetryEngine` reaches a terminal failure for the current
+one. It is a reusable service around the retry engine — the LangGraph workflow
+stays single-candidate:
+
+```python
+from llm_orchestrator.reliability import FallbackExecutor
+
+executor = FallbackExecutor(registry, retry_engine, fallback_policy)
+result = await executor.run(request, candidates, initial=selected)
+```
+
+- Routing chooses the initial candidate; retry re-attempts the same candidate;
+  fallback advances to the next one on a fallback-eligible normalized error.
+- Order is deterministic (initial first, duplicates collapsed, routing order
+  preserved) and bounded: `max_fallbacks=0` means the initial candidate only,
+  `max_fallbacks=2` allows at most `A → B → C`. (`max_attempts` counts attempts
+  on one candidate; `max_fallbacks` counts candidate transitions.)
+- Success stops immediately; all-candidate failure returns the last terminal
+  error with the complete per-call attempt history. Cancellation and
+  programming errors propagate untouched and never trigger a transition.
+
+See [`docs/fallback.md`](docs/fallback.md).
 
 ## Routing & model selection (Phase 10)
 
@@ -264,8 +292,9 @@ result = await orchestrator.run(request, model)  # OrchestrationResult
 - Success yields `OrchestrationResult` with the `LLMResponse`; normalized
   `LLMError` yields one with a sanitized `ErrorInfo`. Bugs and cancellation
   propagate untouched.
-- One candidate only: no fallback, routing, validation, or multi-agent
-  behavior. The state model is the extension point for those phases.
+- One candidate only: no routing, validation, or multi-agent behavior.
+  Multi-candidate fallback lives in `FallbackExecutor` (Phase 11), a reusable
+  service around the retry engine — the graph itself is unchanged.
 
 See [`docs/orchestration.md`](docs/orchestration.md).
 
@@ -326,10 +355,11 @@ llm-orchestrator/
 │           ├── registry.py     # ProviderRegistry
 │           ├── gemini.py       # GeminiProvider (Phase 4)
 │           └── groq.py         # GroqProvider (Phase 5)
-│       └── reliability/        # retry engine (Phase 6)
+│       └── reliability/        # retry engine + fallback executor (Phases 6, 11)
 │           ├── __init__.py     # curated public exports
 │           ├── retry.py        # RetryEngine
-│           └── backoff.py      # backoff + jitter math
+│           ├── backoff.py      # backoff + jitter math
+│           └── fallback.py     # FallbackExecutor
 │       └── routing/            # routing & model selection (Phase 10)
 │           ├── __init__.py     # curated public exports
 │           ├── static.py       # StaticRoutingPolicy + estimate_cost
@@ -347,7 +377,7 @@ llm-orchestrator/
 │   │   ├── test_package.py     # foundation tests
 │   │   ├── contracts/          # contract, serialization, invariant tests
 │   │   ├── providers/          # abstraction, registry, Gemini/Groq adapter tests
-│   │   ├── reliability/        # retry engine + backoff + invariant tests
+│   │   ├── reliability/        # retry + fallback + invariant tests
 │   │   ├── routing/            # static routing + router + invariant tests
 │   │   ├── orchestration/      # state, nodes, graph + invariant tests
 │   │   └── structured/         # validation behavior + invariant tests
@@ -358,6 +388,7 @@ llm-orchestrator/
 │   ├── architecture.md
 │   ├── providers.md            # provider + Gemini/Groq adapter documentation
 │   ├── reliability.md          # retry engine documentation
+│   ├── fallback.md             # fallback execution documentation
 │   ├── routing.md              # routing & model selection documentation
 │   ├── errors.md               # normalized error classification model
 │   ├── orchestration.md        # LangGraph workflow documentation
@@ -434,11 +465,13 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 10 — Routing & Model Selection.** `ModelRouter` + `StaticRoutingPolicy`
-(`llm_orchestrator.routing`) deterministically select the initial `ModelConfig`
-candidate — explicit-model, provider preference, capability, priority, and
-truthful cost-aware ranking — returning one candidate into the existing
-retry/provider path. Fallback and observability remain deferred.
+**Phase 11 — Fallback execution.** `FallbackExecutor`
+(`llm_orchestrator.reliability`) moves execution to the next routing-ordered
+candidate after a candidate's terminal `RetryEngine` failure, when the
+normalized error is fallback-eligible and the `max_fallbacks` budget remains.
+Routing (which candidate first), retry (same candidate again), and fallback
+(another candidate) stay separate; the LangGraph workflow is unchanged.
+Observability remains deferred.
 
 ## Roadmap at a glance
 
@@ -448,8 +481,9 @@ Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
               → Gemini (Phase 4) → Groq (Phase 5) → Retry (Phase 6)
             → Error classification (Phase 7) → LangGraph orchestration (Phase 8)
              → Structured output & validation (Phase 9)
-             → Routing & model selection (Phase 10, current)
-             → Fallback → Observability → Testing
+              → Routing & model selection (Phase 10)
+              → Fallback execution (Phase 11, current)
+              → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test
            → Production hardening → Final E2E validation
 ```

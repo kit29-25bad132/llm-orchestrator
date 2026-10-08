@@ -111,7 +111,8 @@ advanced use and testing.
 ## What LangGraph does NOT do yet
 
 ```text
-Fallback: deferred (no candidate switching; exhaustion yields a failure result)
+Fallback: owned by FallbackExecutor (Phase 11, docs/fallback.md) as a reusable
+  service around RetryEngine — the graph itself stays single-candidate by design
 Routing: deferred (the candidate arrives as an explicit ModelConfig)
 Structured output: deferred (no validation nodes)
 Observability: deferred (attempt records are preserved for it)
