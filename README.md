@@ -8,7 +8,7 @@ validation, LangGraph-based orchestration, configuration, and observability.
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 11 — Fallback execution.**
+> **Status: Phase 12 — Configuration system.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
@@ -19,7 +19,8 @@ ReviewIQ) bring their own prompts, schemas, and business logic.
 > a deterministic **LangGraph orchestration** boundary
 > (`llm_orchestrator.orchestration`),
 > **Pydantic-native structured-output validation** (`llm_orchestrator.structured`),
-> and deterministic **routing & model selection** (`llm_orchestrator.routing`).
+> deterministic **routing & model selection** (`llm_orchestrator.routing`),
+> and a secure, typed **configuration system** (`llm_orchestrator.config`).
 > **Observability is deferred** — runs already preserve the attempt history it
 > will consume (see [`docs/roadmap.md`](docs/roadmap.md)).
 
@@ -181,6 +182,47 @@ Groq speaks the OpenAI-compatible chat shape, so messages map one-to-one with
 ordering preserved; errors are normalized into the same hierarchy, and the
 SDK's own retries are disabled (`max_retries=0`) so the single-attempt contract
 holds. See [`docs/providers.md`](docs/providers.md).
+
+## Configuration (Phase 12)
+
+`OrchestratorSettings` (`llm_orchestrator.config`) is the single validated
+object describing providers, model candidates, retry/fallback/routing
+policies, and an optional library-level default timeout. It reuses the
+existing contract types, holds no secret values, and reads nothing from the
+environment on construction:
+
+```python
+import os
+
+from llm_orchestrator.config import (
+    OrchestratorSettings,
+    build_registry,
+    load_settings,
+)
+from llm_orchestrator.contracts import ModelConfig, ProviderConfig
+
+settings = load_settings(
+    explicit=OrchestratorSettings(
+        providers=(ProviderConfig(name="gemini", credential_env_var="GEMINI_API_KEY"),),
+        models=(ModelConfig(provider="gemini", model="<gemini-model-id>"),),
+    ),
+    env=os.environ,
+)
+registry = build_registry(settings, env=os.environ)
+```
+
+- Explicit values always win; the environment only fills
+  `default_timeout_s` (via `LLM_ORCH_DEFAULT_TIMEOUT_S`) when explicit
+  settings leave it unset. Only `GEMINI_API_KEY`, `GROQ_API_KEY`, and
+  `LLM_ORCH_DEFAULT_TIMEOUT_S` belong to the library surface, and no `.env`
+  file is ever loaded automatically.
+- Credentials are resolved inside `build_registry` from each provider's own
+  `credential_env_var`, passed straight to the provider constructor, and
+  never stored — missing values raise `ConfigurationError` naming the
+  variable, never the value. `import llm_orchestrator.config` needs no keys
+  and loads no provider SDKs.
+
+See [`docs/configuration.md`](docs/configuration.md).
 
 ## Reliability — retry (Phase 6)
 
@@ -372,6 +414,10 @@ llm-orchestrator/
 │       └── structured/         # structured-output validation (Phase 9)
 │           ├── __init__.py     # curated public exports
 │           └── pydantic_adapter.py  # validate_structured_output
+│       └── config/             # configuration system (Phase 12)
+│           ├── __init__.py     # curated public exports
+│           ├── settings.py     # OrchestratorSettings
+│           └── loader.py       # load_settings + build_registry
 ├── tests/
 │   ├── unit/
 │   │   ├── test_package.py     # foundation tests
@@ -380,12 +426,14 @@ llm-orchestrator/
 │   │   ├── reliability/        # retry + fallback + invariant tests
 │   │   ├── routing/            # static routing + router + invariant tests
 │   │   ├── orchestration/      # state, nodes, graph + invariant tests
-│   │   └── structured/         # validation behavior + invariant tests
+│   │   ├── structured/         # validation behavior + invariant tests
+│   │   └── config/             # settings, loader, registry + invariant tests
 │   └── integration/
 │       ├── test_gemini_live.py # opt-in live test (marked `live`)
 │       └── test_groq_live.py   # opt-in live test (marked `live`)
 ├── docs/
 │   ├── architecture.md
+│   ├── configuration.md      # configuration system documentation
 │   ├── providers.md            # provider + Gemini/Groq adapter documentation
 │   ├── reliability.md          # retry engine documentation
 │   ├── fallback.md             # fallback execution documentation
@@ -465,12 +513,15 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 11 — Fallback execution.** `FallbackExecutor`
-(`llm_orchestrator.reliability`) moves execution to the next routing-ordered
-candidate after a candidate's terminal `RetryEngine` failure, when the
-normalized error is fallback-eligible and the `max_fallbacks` budget remains.
-Routing (which candidate first), retry (same candidate again), and fallback
-(another candidate) stay separate; the LangGraph workflow is unchanged.
+**Phase 12 — Configuration system.** `OrchestratorSettings`
+(`llm_orchestrator.config`) is the single validated object describing
+providers, model candidates, retry/fallback/routing policies, and an optional
+library-level default timeout; `load_settings` layers the three documented
+environment variables over explicit values (explicit wins), and
+`build_registry` constructs an independent `ProviderRegistry` with
+environment-resolved credentials that are never stored. Earlier phases are
+unchanged: routing chooses the initial candidate, retry re-attempts it,
+fallback moves to another one, and the LangGraph workflow is untouched.
 Observability remains deferred.
 
 ## Roadmap at a glance
@@ -482,7 +533,8 @@ Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
             → Error classification (Phase 7) → LangGraph orchestration (Phase 8)
              → Structured output & validation (Phase 9)
               → Routing & model selection (Phase 10)
-              → Fallback execution (Phase 11, current)
+              → Fallback execution (Phase 11)
+              → Configuration system (Phase 12, current)
               → Observability → Testing
            → Packaging → ReviewIQ integration → Portability test
            → Production hardening → Final E2E validation

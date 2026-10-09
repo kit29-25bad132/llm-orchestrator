@@ -241,18 +241,30 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 ---
 
-## Phase 12 — Observability
+## Phase 12 — Configuration System
 
-- **O:** Make every run explainable via structured events.
-- **C:** `observability/observer.py`, `observability/events.py`,
-  `observability/sinks.py` (null, logging, in-memory).
-- **T:** Emit Request/Attempt/Retry/Fallback/Validation/Usage events; wire into
-  the graph runner; redact prompt/response bodies by default.
-- **X:** Event-emission tests; in-memory sink assertions; redaction tests.
-- **D:** A run yields a complete event trail; default sink is a no-op.
-- **!:** No network telemetry by default; no prompts/responses logged unless
-  opted in.
-- **Deliverable:** Observer protocol + events + sinks.
+> Status: implemented (`config/` with `OrchestratorSettings`,
+> `load_settings`, and `build_registry`; see `docs/configuration.md`).
+> The original roadmap labeled this phase "Observability"; the actual build
+> order deferred observability and implemented configuration here instead,
+> since providers, routing, retry, and fallback were all waiting on a
+> coherent way to construct and validate setup.
+
+- **O:** Give applications one validated object for setup, credential
+  resolution, and registry construction — without manual wiring.
+- **C:** `config/settings.py` (`OrchestratorSettings`), `config/loader.py`
+  (`load_settings`, `build_registry`, `resolve_timeout_s`).
+- **T:** Reuse `ProviderConfig`/`ModelConfig`/`RetryPolicy`/`FallbackPolicy`/
+  `StaticRoutingPolicy` verbatim; map only `GEMINI_API_KEY`, `GROQ_API_KEY`,
+  and `LLM_ORCH_DEFAULT_TIMEOUT_S`; resolve credentials without storing
+  them; keep explicit-wins precedence with an injectable env mapping.
+- **X:** Settings, loader, registry, redaction, import-time, independence,
+  backward-compatibility, and architectural-invariant tests — all offline.
+- **D:** The full suite (including strict mypy) is green; no new runtime
+  dependencies; earlier phases unchanged.
+- **!:** No observability/telemetry, no config files, no secret managers, no
+  new retry/fallback/routing behavior.
+- **Deliverable:** Secure, typed, injectable configuration + docs.
 
 ---
 
@@ -351,12 +363,12 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 | Groq | 5 |
 | Retry | 6 |
 | Error classification | 2 (taxonomy), 7 (mapping) |
-| Fallback | 8 |
+| Fallback | 8 (execution slice landed as Phase 11) |
 | LangGraph orchestration | 9 |
 | Structured output | 10 |
 | Routing / model selection | 11 |
-| Observability | 12 |
-| Configuration | 2 |
+| Configuration | 12 |
+| Observability | **deferred** (was Phase 12; runs already preserve attempt history) |
 | Testing | continuous; hardened in 13 |
 | Packaging | 1, 14 |
 | ReviewIQ integration | 15 |

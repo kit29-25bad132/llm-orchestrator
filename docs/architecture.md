@@ -609,6 +609,12 @@ A future OpenTelemetry adapter implements the same protocol — no core changes.
 
 ## 11. Configuration (Phase 0 Step 11)
 
+> Implementation status: the configuration system has landed as Phase 12
+> (`config/` with `OrchestratorSettings`, `load_settings`, and
+> `build_registry`; see `docs/configuration.md`). It follows the table below
+> exactly: secrets stay in the environment, everything else is explicit
+> validated data, and no new dependency was introduced.
+
 ### Where each concern lives
 
 | Concern | Home | Example |
@@ -621,11 +627,18 @@ A future OpenTelemetry adapter implements the same protocol — no core changes.
 | Policy *logic* | Code | backoff math, classification |
 | Business choices | **Consuming application** | prompts, which models, schemas |
 
-- Loading uses `pydantic-settings` (planned) with env-var validation and clear
-  `ConfigurationError` on anything missing/malformed.
-- Secrets are **never** hardcoded, never logged, and never stored in config
-  objects — only the env var *name* is referenced.
+- Loading uses `load_settings` (no settings framework, no `.env` auto-loading)
+  with explicit-wins precedence and clear `ConfigurationError` on anything
+  missing/malformed.
+- Secrets are **never** hardcoded, never logged, never serialized, and never
+  stored in settings objects — only the env var *name* is referenced.
 - Configuration is validated once at startup; misconfiguration fails fast.
+- Dependency direction: `config/` may reference policy *types* from
+  `contracts`/`routing` and construct providers via the existing adapters,
+  but it implements no retry, fallback, routing, or LangGraph logic, keeps no
+  global instance, and reads the environment only inside its loader functions
+  (never at import time). Provider SDK imports remain confined to their
+  adapter modules (`config` imports them lazily inside `build_registry`).
 
 ---
 

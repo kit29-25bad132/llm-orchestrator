@@ -61,9 +61,9 @@ provider = GeminiProvider(api_key=os.environ["GEMINI_API_KEY"])
   blank keys raise `ConfigurationError` at construction (fail fast).
 - The key is held privately and never appears in `repr`, errors, response
   metadata, or serialization.
-- The future configuration layer (Phase 12) is responsible for reading
-  `GEMINI_API_KEY` and passing it in; the provider itself stays
-  environment-independent.
+- The configuration layer (Phase 12, `llm_orchestrator.config`) reads
+  `GEMINI_API_KEY` and passes it in via `build_registry()`; the provider
+  itself stays environment-independent.
 - `client=...` lets tests (and advanced callers) inject an SDK client.
 
 ### Model selection
@@ -212,9 +212,9 @@ provider = GroqProvider(api_key=os.environ["GROQ_API_KEY"])
   blank keys raise `ConfigurationError` at construction (fail fast).
 - The key is held privately and never appears in `repr`, errors, response
   metadata, or serialization.
-- The future configuration layer (Phase 12) is responsible for reading
-  `GROQ_API_KEY` and passing it in; the provider itself stays
-  environment-independent.
+- The configuration layer (Phase 12, `llm_orchestrator.config`) reads
+  `GROQ_API_KEY` and passes it in via `build_registry()`; the provider
+  itself stays environment-independent.
 - `client=...` lets tests (and advanced callers) inject an SDK client.
 
 ### Model selection
@@ -367,5 +367,6 @@ supplied by the environment rather than pinned in the repository.
 - Fallback and routing, including model substitution (Phases 8, 11).
 - Structured output and validation (Phase 9).
 - Tool/function calling and multimodal input.
-- The configuration framework and environment loading (Phase 12).
-- Observability/telemetry emission (Phase 12).
+- Environment loading and registry construction
+  (Phase 12, `llm_orchestrator.config` — providers still never read env).
+- Observability/telemetry emission (deferred).
