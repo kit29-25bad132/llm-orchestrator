@@ -43,8 +43,9 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 - **C:** `pyproject.toml` (PEP 621), `src/llm_orchestrator/__init__.py`,
   `.env.example`, CI config, dev tooling (ruff, mypy, pytest).
 - **T:** Decide Python floor (3.11+) and verify against the local 3.14
-  interpreter; keep runtime dependencies **empty** (Pydantic/pydantic-settings
-  and LangGraph are added in the phases that consume them); set up
+  interpreter; keep runtime dependencies **empty** (Pydantic
+  and LangGraph are added in the phases that consume them — no settings
+  framework is introduced); set up
   `pip install -e ".[dev]"`; add a foundation test.
 - **X:** Package imports; `pytest` runs a placeholder-free foundation test;
   ruff + mypy pass.
@@ -363,10 +364,10 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 | Groq | 5 |
 | Retry | 6 |
 | Error classification | 2 (taxonomy), 7 (mapping) |
-| Fallback | 8 (execution slice landed as Phase 11) |
-| LangGraph orchestration | 9 |
-| Structured output | 10 |
-| Routing / model selection | 11 |
+| Fallback | 11 (planned as Phase 8) |
+| LangGraph orchestration | 8 (planned as Phase 9) |
+| Structured output | 9 (planned as Phase 10) |
+| Routing / model selection | 10 (planned as Phase 11) |
 | Configuration | 12 |
 | Observability | **deferred** (was Phase 12; runs already preserve attempt history) |
 | Testing | continuous; hardened in 13 |
@@ -374,4 +375,4 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 | ReviewIQ integration | 15 |
 | Portability test | 16 |
 | Production hardening | 17 |
-| Cost/latency/reliability-aware routing | **deferred** (seam only, Phase 11) |
+| Cost/latency/reliability-aware routing | **deferred** (seam only, Phase 10) |

@@ -779,11 +779,14 @@ not created.
    verify 3.14 support before Phase 1. Proposed floor: `requires-python >= 3.11`.
 2. **License.** No `LICENSE` file created — licensing is a human decision.
 3. **Dependency choices** (deferred to the phase that needs each one). Phase 1
-   keeps runtime dependencies **empty**; `pydantic` v2 + `pydantic-settings` are
-   added with the contracts/config work (Phase 2), LangGraph remains an
+   keeps runtime dependencies **empty**; `pydantic` v2 is
+   added with the contracts work (Phase 2), LangGraph remains an
    **optional extra** added when orchestration lands, official provider SDKs
    (`google-genai`, `groq`) are wrapped behind adapters in their provider
    phases, and retry uses a custom in-library implementation (for explicit,
-   testable backoff/jitter) rather than a third-party retry library.
+   testable backoff/jitter) rather than a third-party retry library. No
+   settings framework (such as `pydantic-settings`) was introduced — Phase 12
+   implemented configuration with plain Pydantic models and no new
+   dependency.
 4. **Packaging tool.** Environment has no Poetry/uv; proposal is a standard
    `pyproject.toml` with a PEP 621 layout and `pip install -e .` for dev.

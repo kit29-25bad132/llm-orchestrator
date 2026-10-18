@@ -93,5 +93,9 @@ interfere. The request object is never mutated.
 
 - Routing/candidate ordering is owned by Phase 10 (`docs/routing.md`); the
   fallback plan consumes that order and never reselects.
-- Structured output (Phase 10), observability events (Phase 12),
-  configuration loading (Phase 12).
+- Structured-output validation landed as Phase 9
+  (`docs/structured-output.md`).
+- Configuration loading is implemented as Phase 12
+  (`docs/configuration.md`); observability event emission remains deferred
+  (originally planned for Phase 12 — runs already preserve the attempt
+  history it will consume).

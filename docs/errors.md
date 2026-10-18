@@ -119,6 +119,9 @@ semantics (proven by `test_cross_provider_consistency.py`).
 
 ## Intentionally deferred
 
-- Fallback execution (a later phase) — eligibility flags exist, no engine yet.
-- Routing (Phase 11), structured-output validation beyond post-hoc Pydantic
-  checks (Phase 10+), observability event emission, configuration loading.
+- Observability event emission (originally planned for Phase 12; runs already
+  preserve the attempt history it will consume).
+
+Fallback execution, routing, post-hoc Pydantic structured-output validation,
+and configuration loading have all landed since this section was written
+(Phases 8–12); only observability remains deferred.

@@ -419,16 +419,19 @@ llm-orchestrator/
 │           ├── settings.py     # OrchestratorSettings
 │           └── loader.py       # load_settings + build_registry
 ├── tests/
+│   ├── support/                  # shared test-only helpers (fakes, builders)
 │   ├── unit/
 │   │   ├── test_package.py     # foundation tests
 │   │   ├── contracts/          # contract, serialization, invariant tests
 │   │   ├── providers/          # abstraction, registry, Gemini/Groq adapter tests
-│   │   ├── reliability/        # retry + fallback + invariant tests
+│   │   ├── reliability/        # retry + fallback + failure-simulation tests
 │   │   ├── routing/            # static routing + router + invariant tests
 │   │   ├── orchestration/      # state, nodes, graph + invariant tests
 │   │   ├── structured/         # validation behavior + invariant tests
 │   │   └── config/             # settings, loader, registry + invariant tests
 │   └── integration/
+│       ├── test_offline_end_to_end.py  # offline composed path (config →
+│       │                              # registry → routing → retry/fallback)
 │       ├── test_gemini_live.py # opt-in live test (marked `live`)
 │       └── test_groq_live.py   # opt-in live test (marked `live`)
 ├── docs/
@@ -441,6 +444,7 @@ llm-orchestrator/
 │   ├── errors.md               # normalized error classification model
 │   ├── orchestration.md        # LangGraph workflow documentation
 │   ├── structured-output.md    # structured-output validation documentation
+│   ├── testing.md              # test inventory, boundaries, quality gates
 │   └── roadmap.md
 ├── .github/
 │   └── workflows/
@@ -494,6 +498,11 @@ mypy
 ```
 
 Tests are grouped by kind under `tests/`. The default suite is fully offline.
+Shared test-only helpers live in `tests/support/` (scripted providers,
+recording sleeps, builders, scripted SDK clients) and are imported explicitly
+as `support.fakes` — see [`docs/testing.md`](docs/testing.md) for the full
+test inventory, the offline end-to-end suite, and the unit/integration/live
+boundaries.
 Provider API-calling tests are marked `live` and skipped unless explicitly
 enabled, so normal development consumes no API quota:
 

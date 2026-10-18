@@ -50,6 +50,9 @@ packages = ["src/llm_orchestrator"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Lets reusable test-only helpers under tests/support/ be imported as
+# `support.*` without a top-level conftest or package restructuring.
+pythonpath = ["tests"]
 addopts = "-ra --strict-markers --strict-config"
 markers = [
     "live: tests that call real provider APIs (opt-in; skipped by default)",
