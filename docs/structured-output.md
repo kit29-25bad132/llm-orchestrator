@@ -85,15 +85,30 @@ masquerading as an LLM failure.
 
 ## Failure semantics
 
-Every validation failure raises the existing
-`StructuredOutputValidationError` (`STRUCTURED_OUTPUT_VALIDATION` category —
-retryable and fallback-eligible by taxonomy default, so retry/fallback
-policy decides what happens next; this layer never retries or switches
-providers itself). The error preserves `provider`, `model`, and `request_id`
-from the response, chains the original `json`/`Pydantic` exception as
-`cause`, and records `metadata` with the `stage` (`extract`/`parse`/
-`validate`), the schema name, and a sanitized ≤500-character content
-preview. Messages and metadata never carry secrets or full payloads.
+`validate_structured_output` (`llm_orchestrator.structured`) is a pure
+post-orchestration function — it runs after the provider call (and any retry
+or fallback planning) has already completed. It parses the normalized
+`LLMResponse.content` as JSON (plain or `` ```json ``-fenced) and validates
+it against a caller‑owned Pydantic model.
+
+When validation fails, the function raises `StructuredOutputValidationError`
+(`STRUCTURED_OUTPUT_VALIDATION` category). This error is **not** automatically
+caught by the retry or fallback machinery, because it is raised after the
+executor has already returned. The consumer must handle the exception
+explicitly; error‑category flags such as ``retryable`` and
+``fallback_eligible`` describe the error's taxonomy defaults but do not
+trigger another provider attempt or a retry of the generation step.
+
+Neither the documented post‑execution validation flow nor the library's
+retry/fallback logic provides automatic validation‑error repair, retry, or
+fallback. If a caller wishes to retry the generation or switch provider on a
+validation failure, that must be implemented in application code.
+
+The error preserves `provider`, `model`, and `request_id` from the response,
+chains the original `json`/`Pydantic` exception as `cause`, and records
+`metadata` with the `stage` (`extract`/`parse`/`validate`), the schema name,
+and a sanitized ≤500‑character content preview. Messages and metadata never
+carry secrets or full payloads.
 
 ## Relationship to ReviewIQ
 

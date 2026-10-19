@@ -77,9 +77,18 @@ formula and caveats live under "Cumulative runtime" in
 The normalized `LLMError.fallback_eligible` flag decides, exactly as the error
 taxonomy defines it (see `docs/errors.md`). An explicit
 `FallbackPolicy.fallback_on` category set overrides the taxonomy, mirroring how
-`RetryPolicy.retry_on` works. Structured-output validation failures additionally
-honor `include_validation_failures`. Registry misses (`ConfigurationError`)
-are terminal per the taxonomy and stop the run.
+`RetryPolicy.retry_on` works.
+
+`include_validation_failures` is evaluated inside `FallbackExecutor.run` when a
+candidate's terminal error has the `STRUCTURED_OUTPUT_VALIDATION` category.
+If the validation failure originates from inside a candidate attempt (e.g. a
+provider raising `StructuredOutputValidationError`), the flag determines
+whether the error is retry‑then‑fallback per candidate (default `True`) or
+terminal per plan (`False`). However, the documented post‑execution validation
+sequence — where the consumer calls `validate_structured_output` after
+`FallbackExecutor.run` has already returned — does not pass through this
+eligibility check; the option has no effect in that flow. Registry misses
+(`ConfigurationError`) are terminal per the taxonomy and stop the run.
 
 ## Guarantees
 

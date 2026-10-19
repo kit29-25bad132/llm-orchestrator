@@ -6,12 +6,12 @@ above the boundary speaks only `LLMError`.
 
 ```
 Gemini SDK error ──→ Gemini adapter ──→ LLMError ──→ RetryEngine ──→ caller
-Groq SDK error   ──→ Groq adapter   ──→ LLMError ──→ (future fallback/routing/graph)
+Groq SDK error   ──→ Groq adapter   ──→ LLMError ──→ (fallback/routing/graph)
 ```
 
 Classification describes the failure (category, retryability, fallback
 eligibility, context). It never decides policy: the retry engine decides
-whether to retry, and the future fallback engine will decide whether to change
+whether to retry, and the fallback engine decides whether to change
 candidate.
 
 ---
