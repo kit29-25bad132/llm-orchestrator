@@ -38,7 +38,7 @@ from ..contracts import (
     ModelConfig,
     OrchestrationResult,
 )
-from ..errors import ConfigurationError, ErrorCategory, LLMError
+from ..errors import ConfigurationError, ErrorCategory, LLMError, require_timeout_s
 from ..providers import LLMProvider, ProviderRegistry
 from .retry import RetryEngine
 
@@ -216,6 +216,7 @@ class FallbackExecutor:
         otherwise the last error becomes the failed result with the complete
         attempt history. ``timeout_s`` passes through to every candidate.
         """
+        require_timeout_s(timeout_s)
         active = policy if policy is not None else self._policy
         plan = _plan_candidates(candidates, initial, active, request_id=request.request_id)
         start = time.perf_counter()

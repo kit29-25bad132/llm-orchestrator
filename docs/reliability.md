@@ -66,6 +66,34 @@ adapters) raises the computed wait — `min(max_backoff_s, max(delay,
 retry_after_s))` — so the server's minimum is honored without ever exceeding
 the policy cap. Missing, negative, or non-finite values are ignored.
 
+## Cumulative runtime
+
+There is **no overall deadline**: the library never wraps a run in a
+wall-clock budget of its own. Each attempt is bounded only by the `timeout_s`
+passed at the call seam (when set — see "Timeout precedence" in
+[`docs/configuration.md`](configuration.md)), and a full run's duration is the
+sum of its parts:
+
+```
+per candidate  ≲  max_attempts × timeout_s + (max_attempts − 1) × max_backoff_s
+per run        =  Σ over the fallback plan of the candidate bound
+```
+
+So the worst case grows with `max_attempts`, `max_backoff_s`, and the plan
+size (`1 + max_fallbacks`). Caveats:
+
+- The bound holds only when a positive, finite `timeout_s` is set and the
+  provider SDK honors it; with `timeout_s=None` an attempt takes as long as
+  the provider takes (the SDK's own default applies, or none).
+- An SDK timeout bounds the *client's* wait; a provider may still finish
+  processing after the client has given up.
+- A server-provided `retry_after_s` raises a wait up to `max_backoff_s`,
+  never above the cap.
+
+Every size involved is bounded (`max_attempts ≥ 1`, `max_fallbacks ≥ 0`,
+backoff capped), so a configured run has a finite, computable upper bound —
+but the library computes no deadline and enforces none.
+
 ## What is (and is not) retried
 
 | Situation | Behavior |

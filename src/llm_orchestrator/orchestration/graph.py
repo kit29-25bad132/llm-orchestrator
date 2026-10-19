@@ -30,6 +30,7 @@ except ImportError as exc:
     ) from exc
 
 from ..contracts import LLMRequest, ModelConfig, OrchestrationResult
+from ..errors import require_timeout_s
 from ..providers import ProviderRegistry
 from ..reliability import RetryEngine
 from .nodes import execute_model
@@ -104,6 +105,7 @@ class Orchestrator:
         wrapping the ``CancelledError``; that wrapper is unwrapped here so
         callers always observe standard cancellation semantics.
         """
+        require_timeout_s(timeout_s)
         try:
             final = await self._graph.ainvoke(initial_state(request, model, timeout_s=timeout_s))
         except NodeCancelledError as exc:

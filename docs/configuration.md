@@ -84,7 +84,71 @@ implements the single rule, preserving existing provider behavior:
 5. `None` (the SDK's existing default)
 
 Pass the result into the existing `timeout_s` seams
-(`RetryEngine.generate`, `Orchestrator.run`, provider `generate`).
+(`RetryEngine.generate`, `FallbackExecutor.run`, `Orchestrator.run`, and the
+provider `generate` methods).
+
+### Resolution is not enforcement
+
+`resolve_timeout_s` is a pure helper: nothing in the library calls it
+automatically, and neither `RetryEngine`, `FallbackExecutor`, nor the
+orchestrator reads `OrchestratorSettings`. Declaring
+`LLM_ORCH_DEFAULT_TIMEOUT_S` (or `default_timeout_s`) only *supplies* a value
+at level 4 of the precedence chain — it becomes an enforced per-attempt
+timeout only when your code resolves it and passes it into a `timeout_s` seam:
+
+```python
+import asyncio
+import os
+
+from llm_orchestrator.config import (
+    OrchestratorSettings,
+    build_registry,
+    load_settings,
+    resolve_timeout_s,
+)
+from llm_orchestrator.contracts import (
+    LLMRequest,
+    Message,
+    MessageRole,
+    ModelConfig,
+    ProviderConfig,
+)
+from llm_orchestrator.reliability import FallbackExecutor, RetryEngine
+
+settings = load_settings(
+    explicit=OrchestratorSettings(
+        providers=(ProviderConfig(name="groq", credential_env_var="GROQ_API_KEY"),),
+        models=(ModelConfig(provider="groq", model="<groq-model-id>"),),
+        default_timeout_s=30.0,
+    ),
+    env=os.environ,
+)
+registry = build_registry(settings, env=os.environ)
+
+request = LLMRequest(messages=(Message(role=MessageRole.USER, content="Hello"),))
+effective_timeout_s = resolve_timeout_s(settings, provider_name="groq", request=request)
+
+executor = FallbackExecutor(registry, RetryEngine())
+result = asyncio.run(executor.run(request, settings.models, timeout_s=effective_timeout_s))
+```
+
+Here the resolved value (level 4, `30.0`) reaches the provider only because it
+is passed explicitly; the same value goes equally to
+`Orchestrator.run(request, model, timeout_s=effective_timeout_s)` or a direct
+provider `generate`. Call `resolve_timeout_s` with a per-call `timeout_s=` to
+win level 1, or omit it to keep walking the chain.
+
+### Invalid values are rejected at every seam
+
+Each `timeout_s` seam (`RetryEngine.generate`, `FallbackExecutor.run`,
+`Orchestrator.run`, and both provider `generate` methods) validates its
+argument before any attempt, SDK call, or backoff: `None` means "no explicit
+timeout"; any other value must be a positive, finite number of seconds.
+Zero, negative, NaN, and infinite values raise a value-free
+`ConfigurationError` — `timeout_s must be a positive, finite number of
+seconds.` — instead of ever reaching a provider. Contract-held timeouts
+(`LLMRequest.timeout_s`, `ProviderConfig.default_timeout_s`, settings
+`default_timeout_s`) are validated when those objects are constructed.
 
 ## Secrets and boundaries
 

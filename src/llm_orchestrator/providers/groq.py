@@ -59,6 +59,7 @@ from ..errors import (
     ProviderUnavailableError,
     RateLimitError,
     UnknownProviderError,
+    require_timeout_s,
 )
 
 PROVIDER_ID = "groq"
@@ -285,6 +286,7 @@ class GroqProvider:
         timeout_s: float | None = None,
     ) -> LLMResponse:
         """Perform exactly one Groq generation attempt."""
+        require_timeout_s(timeout_s)
         if model.provider != PROVIDER_ID:
             raise InvalidRequestError(
                 f"GroqProvider cannot serve provider {model.provider!r}",

@@ -109,3 +109,25 @@ class UnknownProviderError(LLMError):
     """Fallback classification for an unmapped provider failure."""
 
     category = ErrorCategory.UNKNOWN
+
+
+_INVALID_TIMEOUT_MESSAGE = "timeout_s must be a positive, finite number of seconds."
+
+
+def require_timeout_s(timeout_s: float | None) -> None:
+    """Reject an invalid per-call ``timeout_s`` before any provider call.
+
+    Shared by every public execution seam (retry engine, fallback executor,
+    orchestrator, and both provider adapters). ``None`` ("no explicit
+    timeout") is accepted; every other value must be a positive, finite
+    number of seconds. ``bool`` is rejected despite being an ``int``
+    subclass. The error message is deliberately value-free so a bad value can
+    never be echoed into logs. Internal plumbing: not exported in
+    ``errors.__all__``.
+    """
+    if timeout_s is None:
+        return
+    if isinstance(timeout_s, bool) or not isinstance(timeout_s, int | float):
+        raise ConfigurationError(_INVALID_TIMEOUT_MESSAGE)
+    if timeout_s <= 0 or not math.isfinite(timeout_s):
+        raise ConfigurationError(_INVALID_TIMEOUT_MESSAGE)

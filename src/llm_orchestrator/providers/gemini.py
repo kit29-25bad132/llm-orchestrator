@@ -56,6 +56,7 @@ from ..errors import (
     ProviderUnavailableError,
     RateLimitError,
     UnknownProviderError,
+    require_timeout_s,
 )
 
 PROVIDER_ID = "gemini"
@@ -367,6 +368,7 @@ class GeminiProvider:
         timeout_s: float | None = None,
     ) -> LLMResponse:
         """Perform exactly one Gemini generation attempt."""
+        require_timeout_s(timeout_s)
         if model.provider != PROVIDER_ID:
             raise InvalidRequestError(
                 f"GeminiProvider cannot serve provider {model.provider!r}",

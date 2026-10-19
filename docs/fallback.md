@@ -41,7 +41,9 @@ result = await executor.run(request, candidates, initial=selected, policy=policy
 - `candidates` is the routing-ordered set; `initial` (default: the first
   candidate, i.e. the Phase 10 selection) is always attempted first.
 - `policy` per call overrides the executor default.
-- `timeout_s` passes through to every candidate unchanged.
+- `timeout_s` passes through to every candidate unchanged; it must be `None`
+  or a positive, finite number of seconds (invalid values are rejected
+  before the plan runs).
 
 ## Plan
 
@@ -60,6 +62,15 @@ only the initial provider, and truncation to `1 + max_fallbacks` entries.
 
 So `max_fallbacks=2` allows at most `A → B → C`. The initial candidate is not
 a fallback: `A → B` is 1 fallback.
+
+## Cumulative runtime
+
+A run is bounded only by its parts: each candidate contributes up to
+`max_attempts` attempts, each with its own `timeout_s` and backoff waits, and
+the plan itself is capped at `1 + max_fallbacks` candidates. Total run time
+is the sum of those candidate bounds — there is no library-wide deadline. The
+formula and caveats live under "Cumulative runtime" in
+[`docs/reliability.md`](reliability.md).
 
 ## Eligibility
 

@@ -28,7 +28,7 @@ import random
 from collections.abc import Awaitable, Callable
 
 from ..contracts import LLMRequest, LLMResponse, ModelConfig, RetryPolicy
-from ..errors import LLMError
+from ..errors import LLMError, require_timeout_s
 from ..providers import LLMProvider
 from .backoff import compute_backoff_delay
 
@@ -103,6 +103,7 @@ class RetryEngine:
         retryable), the *original normalized error* propagates with its
         ``attempt`` field stamped — never a replacement exception.
         """
+        require_timeout_s(timeout_s)
         policy = self._policy
         previous_delay_s: float | None = None
         attempt = 0
