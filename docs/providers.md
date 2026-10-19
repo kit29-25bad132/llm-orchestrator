@@ -35,9 +35,13 @@ provider boundary.
 
 - Official package: **`google-genai`** (the current unified Google GenAI SDK;
   not the deprecated `google-generativeai`).
-- Declared runtime dependency: `google-genai>=2.0` (validated against 2.28.0).
-- It is the only provider SDK added in Phase 4; LangGraph, Groq, OpenAI, and
-  others remain out until their phases.
+- Optional dependency: `google-genai>=2.0` (validated against 2.28.0),
+  installed via the **`gemini` extra** (`pip install "llm-orchestrator[gemini]"`,
+  which also declares `httpx`, imported directly by the adapter). The core
+  install does not require it; importing this adapter without the extra raises
+  an actionable `ConfigurationError` naming the install command.
+- It is the only provider SDK added in Phase 4; OpenAI and others remain out
+  until their phases.
 
 ### Import safety
 
@@ -186,9 +190,13 @@ structurally different vendor.
 ### Dependency
 
 - Official package: **`groq`** (the maintained Groq Python SDK).
-- Declared runtime dependency: `groq>=0.11` (validated against 1.7.0).
-- It is the only new runtime dependency added in Phase 5; LangGraph, OpenAI,
-  and others remain out until their phases.
+- Optional dependency: `groq>=0.11` (validated against 1.7.0), installed via
+  the **`groq` extra** (`pip install "llm-orchestrator[groq]"`, which also
+  declares `httpx`, imported directly by the adapter). The core install does
+  not require it; importing this adapter without the extra raises an
+  actionable `ConfigurationError` naming the install command.
+- It is the only new provider SDK added in Phase 5; OpenAI and others remain
+  out until their phases.
 
 ### Import safety
 

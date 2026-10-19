@@ -197,6 +197,7 @@ def test_declared_runtime_dependencies_still_minimal() -> None:
             continue
         name = re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].strip().lower()
         runtime.add(name)
-    assert runtime == {"pydantic", "google-genai", "groq", "langgraph"}, (
-        f"unexpected runtime dependencies: {sorted(runtime)}"
-    )
+    # Phase 14 packaging contract: google-genai, groq, and langgraph moved to
+    # optional extras (asserted per-extra in test_provider_independence.py);
+    # only Pydantic remains in the default installation.
+    assert runtime == {"pydantic"}, f"unexpected runtime dependencies: {sorted(runtime)}"

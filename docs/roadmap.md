@@ -20,7 +20,7 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 ---
 
-## Phase 0 — Architecture & Foundation  ← *this phase*
+## Phase 0 — Architecture & Foundation
 
 - **O:** Verify the empty-repo assumption; establish boundaries, architecture,
   abstractions, and the phase plan. No implementation.
@@ -286,9 +286,18 @@ Legend: **O** objective · **C** components/files · **T** tasks · **X** tests 
 
 ## Phase 14 — Packaging & Release
 
+> Status: implemented — local gates green (build, artifact validation,
+> clean-venv installs, consumer typing smoke); the CI `package` job is added
+> but CI results belong to GitHub. Core dependencies reduced to Pydantic with
+> `[gemini]`/`[groq]`/`[langgraph]`/`[all]`/`[dev]` extras, `py.typed`
+> shipped, wheel + sdist validated by `scripts/validate_dist.py` and
+> smoke-installed by `scripts/smoke_install.py`. The MIT `LICENSE`
+> (`Copyright (c) 2026 RISHI V.`) and PEP 639 license metadata are in place;
+> nothing has been published to an index.
+
 - **O:** Make the library installable and maturable for consumers.
 - **C:** `pyproject.toml` metadata, versioning, changelog, docs polish,
-  extras (`[langgraph]`, `[dev]`, provider extras).
+  extras (`[gemini]`, `[groq]`, `[langgraph]`, `[all]`, `[dev]`).
 - **T:** Finalize public API surface and `__all__`; build sdist/wheel; verify a
   clean-venv install; document quickstart in `README.md`.
 - **X:** Build + install test in a fresh environment; import of the public API.

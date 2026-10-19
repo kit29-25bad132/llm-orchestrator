@@ -97,7 +97,10 @@ Pass the result into the existing `timeout_s` seams
   GEMINI_API_KEY.`
 - `import llm_orchestrator.config` reads no environment, requires no keys,
   and loads no provider SDKs (adapters are imported lazily inside
-  `build_registry`).
+  `build_registry`, one branch per configured provider — configuring only
+  Gemini never imports the Groq adapter, and vice versa). A configured
+  provider whose optional extra is not installed raises `ConfigurationError`
+  naming the exact `pip install "llm-orchestrator[...]"` command.
 - `config/` implements no retry, fallback, routing, or LangGraph logic and
   keeps no singletons. Supported providers are exactly `gemini` and `groq`;
   anything else fails loudly rather than pretending third-party providers

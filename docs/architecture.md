@@ -777,16 +777,23 @@ not created.
 1. **Python version.** Local interpreter is 3.14.0, which may lack wheels for
    LangGraph/provider SDKs. Decide whether to target 3.11/3.12/3.13 for V1 or
    verify 3.14 support before Phase 1. Proposed floor: `requires-python >= 3.11`.
-2. **License.** No `LICENSE` file created — licensing is a human decision.
+2. **License.** **MIT** — resolved in Phase 14: the root `LICENSE` file
+   carries `Copyright (c) 2026 RISHI V.` (owner-supplied attribution), and
+   `pyproject.toml` declares it as a PEP 639 SPDX license expression shipped
+   in both artifacts (see README §License).
 3. **Dependency choices** (deferred to the phase that needs each one). Phase 1
    keeps runtime dependencies **empty**; `pydantic` v2 is
-   added with the contracts work (Phase 2), LangGraph remains an
-   **optional extra** added when orchestration lands, official provider SDKs
-   (`google-genai`, `groq`) are wrapped behind adapters in their provider
-   phases, and retry uses a custom in-library implementation (for explicit,
+   added with the contracts work (Phase 2). As of Phase 14 the default install
+   again carries only Pydantic: LangGraph ships as the optional
+   **`[langgraph]` extra**, the official provider SDKs (`google-genai`,
+   `groq`) as the **`[gemini]`** and **`[groq]` extras** behind their
+   adapters (**`[all]`** combines every optional runtime capability), and
+   retry uses a custom in-library implementation (for explicit,
    testable backoff/jitter) rather than a third-party retry library. No
    settings framework (such as `pydantic-settings`) was introduced — Phase 12
    implemented configuration with plain Pydantic models and no new
    dependency.
-4. **Packaging tool.** Environment has no Poetry/uv; proposal is a standard
-   `pyproject.toml` with a PEP 621 layout and `pip install -e .` for dev.
+4. **Packaging tool.** Environment has no Poetry/uv; delivered as a standard
+   `pyproject.toml` with a PEP 621 layout on the Hatchling backend — dev
+   installs use `pip install -e ".[dev,all]"` and distributions build with
+   `python -m build` (Phase 14).

@@ -84,20 +84,60 @@ def test_no_io_or_environment_access(path: Path) -> None:
     assert not leaked, f"{path.name} performs I/O via {sorted(leaked)}"
 
 
-def test_declared_runtime_dependencies_are_minimal() -> None:
+def _dependency_sets() -> tuple[set[str], dict[str, set[str]]]:
+    """Parse installed metadata into ``(core, {extra: dependency names})``.
+
+    Semantic and order-independent: requirements are compared as sets of
+    normalized distribution names, never by list position or specifier text.
+    """
     declared = requires(DISTRIBUTION_NAME) or []
-    runtime: set[str] = set()
+    core: set[str] = set()
+    by_extra: dict[str, set[str]] = {}
     for requirement in declared:
-        if "extra ==" in requirement or "extra==" in requirement:
-            continue
         name = re.split(r"[<>=!~;\[\s]", requirement, maxsplit=1)[0].strip().lower()
-        runtime.add(name)
-    # google-genai is the Phase 4 Gemini adapter dependency, groq is the
-    # Phase 5 Groq adapter dependency, and langgraph is the Phase 8
-    # orchestration dependency; the contract layer itself never imports
-    # any of them (asserted by the import scan above).
-    assert runtime == {"pydantic", "google-genai", "groq", "langgraph"}, (
-        f"unexpected runtime dependencies: {sorted(runtime)}"
+        marker = re.search(r"""extra\s*==\s*['"]([^'"]+)['"]""", requirement)
+        if marker is None:
+            core.add(name)
+        else:
+            by_extra.setdefault(marker.group(1), set()).add(name)
+    return core, by_extra
+
+
+def test_core_runtime_dependencies_are_minimal() -> None:
+    # Phase 14 packaging contract: the default install needs only Pydantic —
+    # provider SDKs and LangGraph are optional extras (asserted below), so a
+    # consumer without any extra can still import contracts, errors, the
+    # provider abstraction, reliability, routing, structured output, and config.
+    core, _ = _dependency_sets()
+    assert core == {"pydantic"}, f"unexpected core dependencies: {sorted(core)}"
+
+
+def test_provider_and_orchestration_dependencies_are_extras() -> None:
+    _, by_extra = _dependency_sets()
+    # google-genai (Phase 4 adapter), groq (Phase 5 adapter), and langgraph
+    # (Phase 8 orchestration) ship as extras; httpx is declared for the two
+    # adapters because they import it directly for exception classification.
+    assert by_extra.get("gemini") == {"google-genai", "httpx"}
+    assert by_extra.get("groq") == {"groq", "httpx"}
+    assert by_extra.get("langgraph") == {"langgraph"}
+
+
+def test_all_extra_covers_every_optional_runtime_dependency() -> None:
+    _, by_extra = _dependency_sets()
+    optional = by_extra["gemini"] | by_extra["groq"] | by_extra["langgraph"]
+    assert by_extra.get("all") == optional, (
+        "the 'all' extra must install exactly the union of the optional "
+        f"runtime dependencies: {sorted(optional)}"
+    )
+
+
+def test_dev_extra_is_the_development_toolchain_only() -> None:
+    _, by_extra = _dependency_sets()
+    assert by_extra.get("dev") == {"pytest", "ruff", "mypy", "build"}
+    runtime_optionals = {"google-genai", "groq", "langgraph", "httpx"}
+    assert not (by_extra["dev"] & runtime_optionals), (
+        "dev must stay a toolchain extra; runtime capabilities come from "
+        "'all' or the per-feature extras"
     )
 
 

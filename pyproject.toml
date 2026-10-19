@@ -8,6 +8,9 @@ version = "0.1.0"
 description = "A reusable, provider-agnostic LLM orchestration library."
 readme = "README.md"
 requires-python = ">=3.11"
+# MIT (PEP 639 SPDX expression); the file ships in the wheel and sdist.
+license = "MIT"
+license-files = ["LICENSE*"]
 keywords = ["llm", "orchestration", "providers", "reliability", "abstraction"]
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
@@ -21,25 +24,45 @@ classifiers = [
     "Typing :: Typed",
 ]
 
-# Runtime dependencies:
-#   pydantic      - contract validation, immutability, serialization (Phase 2)
-#   google-genai  - the official Google Gemini SDK (Phase 4, GeminiProvider only)
-#   groq          - the official Groq SDK (Phase 5, GroqProvider only)
-#   langgraph     - workflow orchestration graph (Phase 8, orchestration only)
-# Provider SDKs and frameworks are added only when the layer that needs them
-# lands; other vendors remain out until their phases.
+# Core runtime dependency. Everything else is an optional extra (below), so a
+# default install stays minimal: contracts, errors, provider abstraction,
+# retry/fallback, routing, structured output, and configuration all work with
+# just Pydantic (Phase 2).
 dependencies = [
     "pydantic>=2.9",
-    "google-genai>=2.0",
-    "groq>=0.11",
-    "langgraph>=0.6",
 ]
 
 [project.optional-dependencies]
+# Concrete provider adapters. Each adapter module imports only its own SDK;
+# requesting a provider without its extra raises an actionable ConfigurationError
+# naming the extra to install. httpx is declared because both adapters import it
+# directly for transport-level exception classification (it is also a transitive
+# dependency of both SDKs).
+gemini = [
+    "google-genai>=2.0",
+    "httpx",
+]
+groq = [
+    "groq>=0.11",
+    "httpx",
+]
+# LangGraph orchestration workflow (llm_orchestrator.orchestration).
+langgraph = [
+    "langgraph>=0.6",
+]
+# All optional runtime capabilities in one install.
+all = [
+    "google-genai>=2.0",
+    "groq>=0.11",
+    "langgraph>=0.6",
+    "httpx",
+]
+# Development, testing, linting, typing, and building (python -m build).
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    "build>=1.0",
 ]
 
 [project.urls]
@@ -47,6 +70,22 @@ Repository = "https://github.com/kit29-25bad132/llm-orchestrator"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/llm_orchestrator"]
+
+# Deliberate sdist contents policy: everything needed to rebuild the wheel and
+# run the offline test suite from the source archive, plus the top-level
+# documentation files. Repository-only material (docs/, .github/, scripts/,
+# .env.example, caches, local tooling state) stays out. LICENSE* is listed so
+# the MIT license (Phase 14) always ships in the sdist alongside the PEP 639
+# `license-files` metadata that puts it in the wheel.
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "src",
+    "tests",
+    "pyproject.toml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

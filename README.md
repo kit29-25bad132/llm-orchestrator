@@ -3,12 +3,13 @@
 A reusable, **provider-agnostic** LLM orchestration library — provider and model
 abstraction, routing, retries with backoff/jitter, model- and provider-level
 fallback, normalized error classification, structured output with schema
-validation, LangGraph-based orchestration, configuration, and observability.
+validation, LangGraph-based orchestration, and configuration. Observability is
+deferred (see [`docs/roadmap.md`](docs/roadmap.md)).
 
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 12 — Configuration system.**
+> **Status: Phase 14 — Packaging & release readiness.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
@@ -21,6 +22,8 @@ ReviewIQ) bring their own prompts, schemas, and business logic.
 > **Pydantic-native structured-output validation** (`llm_orchestrator.structured`),
 > deterministic **routing & model selection** (`llm_orchestrator.routing`),
 > and a secure, typed **configuration system** (`llm_orchestrator.config`).
+> The default install is core-only (**Pydantic**); provider SDKs and LangGraph
+> are optional extras — see [Installation](#installation).
 > **Observability is deferred** — runs already preserve the attempt history it
 > will consume (see [`docs/roadmap.md`](docs/roadmap.md)).
 
@@ -31,6 +34,105 @@ providers, handling rate limits and timeouts, retrying safely, falling back to
 another model, validating structured output, and observing what happened. This
 library will solve those problems once, behind a clean seam, so any project can
 reuse it without inheriting another project's domain logic.
+
+## Installation
+
+Requires **Python 3.11 or newer**. The package is not published to an index
+yet, so install it from a source checkout or from a built wheel. The default
+install is **core-only**: contracts, errors, provider abstraction, retry,
+fallback, routing, structured output, and configuration — needing only
+**Pydantic**. Provider SDKs and LangGraph arrive through extras, so consumers
+install only what they use.
+
+From a source checkout:
+
+```bash
+python -m pip install .                 # core only
+python -m pip install ".[gemini]"       # + Gemini adapter (google-genai)
+python -m pip install ".[groq]"         # + Groq adapter (groq)
+python -m pip install ".[langgraph]"    # + LangGraph orchestration
+python -m pip install ".[all]"          # every optional runtime capability
+```
+
+From a built wheel (`python -m build` produces `dist/`):
+
+```bash
+python -m pip install dist/llm_orchestrator-0.1.0-py3-none-any.whl
+```
+
+Extras are additive and never required by the core:
+
+| Extra | Enables | Installs |
+| --- | --- | --- |
+| *(none)* | contracts, errors, provider abstraction, retry/fallback, routing, structured output, configuration | `pydantic` |
+| `gemini` | `llm_orchestrator.providers.gemini.GeminiProvider`, Gemini entries in `build_registry` | `google-genai`, `httpx` |
+| `groq` | `llm_orchestrator.providers.groq.GroqProvider`, Groq entries in `build_registry` | `groq`, `httpx` |
+| `langgraph` | `llm_orchestrator.orchestration` (`Orchestrator`) | `langgraph` |
+| `all` | all of the above | union of the three |
+| `dev` | test/lint/type/build toolchain for a checkout (`pytest`, `ruff`, `mypy`, `build`) | tools only |
+
+Using an optional feature without its extra raises `ConfigurationError` with
+the exact `pip install "llm-orchestrator[...]"` command — never an opaque
+`ImportError`. For development from a checkout, see
+[Development setup](#development-setup).
+
+## Quickstart
+
+**Core (no extras, no credentials, no network).** Express intent, pick a
+candidate, and wrap any provider in a retry policy:
+
+```python
+from llm_orchestrator.contracts import (
+    LLMRequest,
+    Message,
+    MessageRole,
+    ModelConfig,
+    RetryPolicy,
+)
+from llm_orchestrator.reliability import RetryEngine
+from llm_orchestrator.routing import ModelRouter, StaticRoutingPolicy
+
+# 1. Provider-neutral intent.
+request = LLMRequest(messages=[Message(role=MessageRole.USER, content="Hello")])
+
+# 2. Deterministic initial-candidate selection.
+candidates = [
+    ModelConfig(provider="gemini", model="<gemini-model-id>"),
+    ModelConfig(provider="groq", model="<groq-model-id>"),
+]
+router = ModelRouter(StaticRoutingPolicy(preferred_provider="gemini"))
+selected = router.select(request, candidates)  # -> ModelConfig
+
+# 3. Bounded retries around any object satisfying the LLMProvider protocol.
+engine = RetryEngine(RetryPolicy(max_attempts=3, initial_backoff_s=0.5))
+```
+
+`selected` flows straight into `engine.generate(provider, request, selected)`
+— `provider` can be anything structural (see
+[Providers](#providers-phase-3-abstraction-phases-45-adapters)) or a concrete
+adapter from an extra.
+
+**Calling a provider (extra required).** This needs
+`pip install "llm-orchestrator[gemini]"` (or `[groq]`) and a credential in the
+environment — never hard-coded:
+
+```python
+import os
+
+from llm_orchestrator.providers.gemini import GeminiProvider  # extra: [gemini]
+
+provider = GeminiProvider(api_key=os.environ["GEMINI_API_KEY"])  # GEMINI_API_KEY=<your key>
+response = await provider.generate(request, selected)  # one live API call
+await provider.aclose()
+```
+
+Construction and `import llm_orchestrator.providers.gemini` never touch the
+network or read the environment; only `generate` performs a real call. The
+LangGraph workflow additionally needs `pip install "llm-orchestrator[langgraph]"`
+(`from llm_orchestrator.orchestration import Orchestrator`) — see
+[`docs/orchestration.md`](docs/orchestration.md), and
+[`docs/configuration.md`](docs/configuration.md) for settings-driven
+`build_registry` setups.
 
 ## Architecture purpose
 
@@ -97,10 +199,11 @@ from llm_orchestrator.errors import ErrorCategory, LLMError, RateLimitError
 See [`docs/errors.md`](docs/errors.md) for the full classification model,
 the category matrix, and the per-provider mapping tables.
 
-Runtime dependencies are deliberately minimal: **Pydantic** (contract
-validation, immutability, and predictable serialization), **`google-genai`**
-(the official Gemini SDK, imported only inside the Gemini adapter), and
-**`groq`** (the official Groq SDK, imported only inside the Groq adapter).
+Runtime dependencies are deliberately minimal: the core install depends only
+on **Pydantic** (contract validation, immutability, and predictable
+serialization). The official provider SDKs (**`google-genai`**, **`groq`**)
+and **LangGraph** are optional extras imported only inside their own adapter /
+orchestration modules — see [Installation](#installation).
 
 ## Providers (Phase 3 abstraction, Phases 4–5 adapters)
 
@@ -140,8 +243,9 @@ registry.get("my-vendor")
 
 ### Gemini (Phase 4)
 
-The first concrete adapter. It is the only module allowed to import the Google
-GenAI SDK, so no SDK type crosses the boundary:
+The first concrete adapter (requires the `gemini` extra). It is the only
+module allowed to import the Google GenAI SDK, so no SDK type crosses the
+boundary:
 
 ```python
 from llm_orchestrator.contracts import LLMRequest, Message, MessageRole, ModelConfig
@@ -162,8 +266,9 @@ or the network. See [`docs/providers.md`](docs/providers.md).
 
 ### Groq (Phase 5)
 
-The second concrete adapter, proving the abstraction needs no core changes for
-a structurally different vendor. It is the only module allowed to import the
+The second concrete adapter (requires the `groq` extra), proving the
+abstraction needs no core changes for a structurally different vendor. It is
+the only module allowed to import the
 Groq SDK:
 
 ```python
@@ -220,7 +325,10 @@ registry = build_registry(settings, env=os.environ)
   `credential_env_var`, passed straight to the provider constructor, and
   never stored — missing values raise `ConfigurationError` naming the
   variable, never the value. `import llm_orchestrator.config` needs no keys
-  and loads no provider SDKs.
+  and loads no provider SDKs. A provider configured without its extra installed
+  raises `ConfigurationError` naming the `pip install "llm-orchestrator[...]"`
+  command; a Gemini-only setup never imports the Groq adapter (and vice
+  versa).
 
 See [`docs/configuration.md`](docs/configuration.md).
 
@@ -317,7 +425,8 @@ See [`docs/routing.md`](docs/routing.md).
 
 ## Orchestration (Phase 8)
 
-`Orchestrator` (`llm_orchestrator.orchestration`) runs one model candidate
+`Orchestrator` (`llm_orchestrator.orchestration`, requires the `langgraph`
+extra) runs one model candidate
 through a deterministic LangGraph workflow (`START → execute_model → END`).
 The graph owns workflow state and transitions; providers, retries, and error
 semantics stay in their existing layers.
@@ -378,6 +487,7 @@ llm-orchestrator/
 ├── src/
 │   └── llm_orchestrator/
 │       ├── __init__.py         # package identity only (version)
+│       ├── py.typed            # PEP 561 marker (ships in the wheel)
 │       ├── contracts/          # provider-neutral contracts
 │       │   ├── __init__.py     # curated public exports
 │       │   ├── messages.py     # Message, MessageRole
@@ -421,7 +531,8 @@ llm-orchestrator/
 ├── tests/
 │   ├── support/                  # shared test-only helpers (fakes, builders)
 │   ├── unit/
-│   │   ├── test_package.py     # foundation tests
+│   │   ├── test_package.py     # foundation tests (incl. py.typed marker)
+│   │   ├── test_optional_extras.py  # missing-extra + lazy-import behavior
 │   │   ├── contracts/          # contract, serialization, invariant tests
 │   │   ├── providers/          # abstraction, registry, Gemini/Groq adapter tests
 │   │   ├── reliability/        # retry + fallback + failure-simulation tests
@@ -446,11 +557,15 @@ llm-orchestrator/
 │   ├── structured-output.md    # structured-output validation documentation
 │   ├── testing.md              # test inventory, boundaries, quality gates
 │   └── roadmap.md
+├── scripts/
+│   ├── validate_dist.py        # wheel/sdist contents + metadata checks
+│   └── smoke_install.py        # post-install import/extra smoke checks
 ├── .github/
 │   └── workflows/
-│       └── ci.yml          # install + ruff + mypy + pytest
+│       └── ci.yml          # test gates + packaging job (3.11–3.14)
 ├── .env.example
 ├── .gitignore
+├── CHANGELOG.md
 ├── pyproject.toml
 └── README.md
 ```
@@ -461,6 +576,9 @@ package rather than an accidentally-imported source directory.
 ## Development setup
 
 Requires **Python 3.11 or newer** (see [Python version policy](#python-version-policy)).
+The commands below install the dev toolchain **plus all optional extras**
+(`[dev,all]`), which is what the full test suite needs; `[dev]` alone installs
+tools only.
 
 Windows PowerShell:
 
@@ -468,7 +586,7 @@ Windows PowerShell:
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,all]"
 ```
 
 macOS / Linux:
@@ -477,7 +595,7 @@ macOS / Linux:
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e ".[dev]"
+python -m pip install -e ".[dev,all]"
 ```
 
 The virtual environment (`.venv/`), caches, build artifacts, and local `.env`
@@ -496,6 +614,19 @@ ruff check .
 ruff format --check .
 mypy
 ```
+
+Packaging checks (also run in the CI `package` job) — build and inspect the
+distributions, then install the wheel in a fresh environment:
+
+```bash
+python -m build
+python scripts/validate_dist.py dist
+python -m venv /tmp/smoke-venv
+/tmp/smoke-venv/bin/python -m pip install dist/llm_orchestrator-0.1.0-py3-none-any.whl
+cd /tmp && /tmp/smoke-venv/bin/python /path/to/repo/scripts/smoke_install.py
+```
+
+See [`docs/testing.md`](docs/testing.md) for the full gate list.
 
 Tests are grouped by kind under `tests/`. The default suite is fully offline.
 Shared test-only helpers live in `tests/support/` (scripted providers,
@@ -522,16 +653,19 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 12 — Configuration system.** `OrchestratorSettings`
-(`llm_orchestrator.config`) is the single validated object describing
-providers, model candidates, retry/fallback/routing policies, and an optional
-library-level default timeout; `load_settings` layers the three documented
-environment variables over explicit values (explicit wins), and
-`build_registry` constructs an independent `ProviderRegistry` with
-environment-resolved credentials that are never stored. Earlier phases are
-unchanged: routing chooses the initial candidate, retry re-attempts it,
-fallback moves to another one, and the LangGraph workflow is untouched.
-Observability remains deferred.
+**Phase 14 — Packaging & release readiness.** The library now ships a
+core-only default install (Pydantic alone) with optional `gemini`, `groq`,
+`langgraph`, `all`, and `dev` extras declared in `pyproject.toml`; provider
+SDKs and LangGraph are imported lazily and missing extras fail with an
+actionable `ConfigurationError`. The package carries its PEP 561 `py.typed`
+marker, builds wheel and sdist via `python -m build`, and is validated by
+content/metadata checks, clean-environment install smokes, and a dedicated CI
+`package` job across Python 3.11–3.14. Earlier phases are unchanged: routing
+chooses the initial candidate, retry re-attempts it, fallback moves to another
+one, and the LangGraph workflow is untouched. Observability remains deferred.
+The MIT license ships in the repository as [`LICENSE`](LICENSE).
+
+Release history: [`CHANGELOG.md`](CHANGELOG.md).
 
 ## Roadmap at a glance
 
@@ -543,16 +677,18 @@ Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
              → Structured output & validation (Phase 9)
               → Routing & model selection (Phase 10)
               → Fallback execution (Phase 11)
-              → Configuration system (Phase 12, current)
-              → Observability → Testing
-           → Packaging → ReviewIQ integration → Portability test
+              → Configuration system (Phase 12)
+              → Testing hardening (Phase 13)
+              → Packaging (Phase 14, current)
+           → ReviewIQ integration → Portability test
            → Production hardening → Final E2E validation
+Observability: deferred (attempt history already preserved)
 ```
 
-High-level future capabilities: provider/model abstraction, routing, retries
+High-level capabilities: provider/model abstraction, routing, retries
 with backoff and jitter, model- and provider-level fallback, normalized error
 classification, structured output with validation, LangGraph orchestration,
-configuration, and observability. Details in
+and configuration; observability remains deferred. Details in
 [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Development / Git workflow
@@ -563,5 +699,7 @@ commits each completed phase manually.
 
 ## License
 
-Not yet chosen. A `LICENSE` file will be added once the licensing decision is
-made (see [`docs/architecture.md`](docs/architecture.md) §18).
+**MIT** — see [`LICENSE`](LICENSE) for the full text
+(`Copyright (c) 2026 RISHI V.`). The license is also declared in
+`pyproject.toml` as a PEP 639 SPDX expression and ships in both the wheel and
+the sdist.

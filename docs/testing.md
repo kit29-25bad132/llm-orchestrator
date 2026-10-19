@@ -1,9 +1,12 @@
 # Testing
 
-Status: **Phase 13.** The offline suite is the primary quality gate: it is
+Status: **Phase 14.** The offline suite (hardened in Phase 13) is the primary
+quality gate: it is
 deterministic, requires no credentials, performs no network calls, and never
 waits on real time. Live provider tests exist but are opt-in and skipped by
-default, so normal development consumes no API quota.
+default, so normal development consumes no API quota. Packaging gates (build,
+artifact validation, clean-install smokes) complement it and are documented
+below.
 
 ## Layout
 
@@ -14,7 +17,8 @@ tests/
 │   └── fakes.py                      # scripted providers, recording sleep,
 │                                     # builders, scripted SDK clients
 ├── unit/
-│   ├── test_package.py               # foundation tests
+│   ├── test_package.py               # foundation tests + py.typed marker
+│   ├── test_optional_extras.py       # missing-extra errors, lazy imports
 │   ├── contracts/                    # validation, serialization, invariants,
 │   │                                 # plus matrix-completion gaps
 │   ├── providers/                    # protocol, registry, Gemini/Groq
@@ -101,3 +105,52 @@ CI (`.github/workflows/ci.yml`) runs install plus `ruff check .`,
 secrets configured, so the offline suite must stay green without credentials
 or network access. All backoff/wait coverage uses injected sleeps and seeded
 or disabled jitter — no real sleeps, no wall-clock assertions.
+
+## Packaging gates (Phase 14)
+
+Offline artifact checks, run from the repository root (also executed by the CI
+`package` job on Python 3.11–3.14):
+
+```bash
+python -m build                                        # wheel + sdist into dist/
+python scripts/validate_dist.py dist                   # contents + metadata contract
+python -m pip wheel dist/*.tar.gz --no-deps -w dist/from-sdist   # sdist -> wheel
+python scripts/validate_dist.py dist/from-sdist --wheel-only
+```
+
+Clean-environment install smoke — the wheel is installed into a **fresh
+temporary virtual environment** (not the repository `.venv`), then the script
+runs from a working directory outside the repository so imports can only come
+from the installed artifact:
+
+```bash
+python -m venv /tmp/core-venv
+/tmp/core-venv/bin/python -m pip install dist/llm_orchestrator-0.1.0-py3-none-any.whl
+cd /tmp && /tmp/core-venv/bin/python /path/to/repo/scripts/smoke_install.py
+# with every optional feature:
+/tmp/core-venv/bin/python -m pip install "llm-orchestrator[all] @ file:///path/to/dist/llm_orchestrator-0.1.0-py3-none-any.whl"
+cd /tmp && /tmp/core-venv/bin/python /path/to/repo/scripts/smoke_install.py \
+  --expect-extras gemini groq langgraph
+```
+
+What each gate proves:
+
+- `validate_dist.py` — the wheel contains exactly the `src/llm_orchestrator`
+  files (including `py.typed`), no tests/docs/env/cache material, and metadata
+  matching `pyproject.toml` (name, version, `requires-python`, `Typing ::
+  Typed`, core/extra dependency sets, and the MIT license expression/file,
+  with `LICENSE` shipped at the sdist root); the sdist matches the declared
+  sdist policy and can rebuild the wheel.
+- `smoke_install.py` — the installed distribution (resolved from
+  `site-packages`, never the source checkout) imports all core subpackages,
+  exposes the frozen public API and version, ships `py.typed`, reports each
+  optional feature as either constructible (extra installed) or failing with
+  the actionable `ConfigurationError` naming its extra (extra absent), and
+  confirms no optional dependency leaks into a core-only environment.
+- `tests/unit/test_optional_extras.py` — the same missing-extra and lazy-import
+  guarantees inside the offline suite, simulated by hiding import roots in a
+  child interpreter (no network, no credentials).
+
+A consumer typing smoke (mypy against an installed environment) is run as part
+of release validation: with a wheel installed in an environment, `mypy --strict`
+on a one-file consumer must resolve package types via the `py.typed` marker.

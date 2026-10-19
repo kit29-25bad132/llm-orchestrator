@@ -21,10 +21,19 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import httpx
-from google import genai
-from google.genai import errors as genai_errors
-from google.genai import types as genai_types
+try:
+    import httpx
+    from google import genai
+    from google.genai import errors as genai_errors
+    from google.genai import types as genai_types
+except ImportError as exc:
+    # The Gemini SDK is an optional extra; never fail with an opaque ImportError.
+    from ..errors import ConfigurationError
+
+    raise ConfigurationError(
+        "GeminiProvider requires the optional 'google-genai' SDK. "
+        'Install it with: pip install "llm-orchestrator[gemini]"'
+    ) from exc
 
 from ..contracts import (
     FinishReason,

@@ -1,6 +1,9 @@
 # Orchestration (LangGraph workflow)
 
-`Orchestrator` (`llm_orchestrator.orchestration`) runs one model candidate
+`Orchestrator` (`llm_orchestrator.orchestration`, requires the `langgraph`
+extra — `pip install "llm-orchestrator[langgraph]"`; without it the import
+raises an actionable `ConfigurationError` naming the command) runs one model
+candidate
 through the existing infrastructure inside a deterministic LangGraph workflow.
 LangGraph owns workflow state and transitions; every other concern stays where
 it already lives: domain semantics in `contracts`, failure semantics in

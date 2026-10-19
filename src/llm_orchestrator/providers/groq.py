@@ -24,10 +24,19 @@ from __future__ import annotations
 import time
 from typing import Any
 
-import groq
-import httpx
-from groq.types.chat import ChatCompletion
-from groq.types.completion_usage import CompletionUsage
+try:
+    import groq
+    import httpx
+    from groq.types.chat import ChatCompletion
+    from groq.types.completion_usage import CompletionUsage
+except ImportError as exc:
+    # The Groq SDK is an optional extra; never fail with an opaque ImportError.
+    from ..errors import ConfigurationError
+
+    raise ConfigurationError(
+        "GroqProvider requires the optional 'groq' SDK. "
+        'Install it with: pip install "llm-orchestrator[groq]"'
+    ) from exc
 
 from ..contracts import (
     FinishReason,

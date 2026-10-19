@@ -17,10 +17,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install (editable, with dev extras)
+      - name: Install (editable, with dev and full extras)
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev,all]"
       - name: Lint
         run: ruff check .
       - name: Format check
@@ -29,3 +29,44 @@ jobs:
         run: mypy
       - name: Test
         run: pytest
+
+  package:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install (project with dev tooling, for python -m build)
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[dev]"
+      - name: Build wheel and sdist
+        run: python -m build
+      - name: Validate artifact contents and metadata
+        run: python scripts/validate_dist.py dist
+      - name: Build a wheel from the sdist and validate it
+        run: |
+          mkdir -p dist/from-sdist
+          python -m pip wheel dist/*.tar.gz --no-deps -w dist/from-sdist
+          python scripts/validate_dist.py dist/from-sdist --wheel-only
+      - name: Install the wheel (core only) and smoke-test outside the repository
+        run: |
+          python -m venv "${RUNNER_TEMP}/core-venv"
+          "${RUNNER_TEMP}/core-venv/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/core-venv/bin/python" -m pip install dist/*.whl
+          cd "${RUNNER_TEMP}"
+          "${RUNNER_TEMP}/core-venv/bin/python" "${GITHUB_WORKSPACE}/scripts/smoke_install.py"
+      - name: Install the wheel with all extras and smoke-test optional features
+        run: |
+          python -m venv "${RUNNER_TEMP}/all-venv"
+          "${RUNNER_TEMP}/all-venv/bin/python" -m pip install --upgrade pip
+          "${RUNNER_TEMP}/all-venv/bin/python" -m pip install "$(ls "${GITHUB_WORKSPACE}"/dist/*.whl)[all]"
+          cd "${RUNNER_TEMP}"
+          "${RUNNER_TEMP}/all-venv/bin/python" "${GITHUB_WORKSPACE}/scripts/smoke_install.py" \
+            --expect-extras gemini groq langgraph

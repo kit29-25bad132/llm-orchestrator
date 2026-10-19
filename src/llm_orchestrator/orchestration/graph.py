@@ -16,9 +16,18 @@ from asyncio import CancelledError
 from functools import partial
 from typing import Any
 
-from langgraph.errors import NodeCancelledError
-from langgraph.graph import END, START, StateGraph
-from langgraph.graph.state import CompiledStateGraph
+try:
+    from langgraph.errors import NodeCancelledError
+    from langgraph.graph import END, START, StateGraph
+    from langgraph.graph.state import CompiledStateGraph
+except ImportError as exc:
+    # LangGraph is an optional extra; never fail with an opaque ImportError.
+    from ..errors import ConfigurationError
+
+    raise ConfigurationError(
+        "llm_orchestrator.orchestration requires the optional 'langgraph' package. "
+        'Install it with: pip install "llm-orchestrator[langgraph]"'
+    ) from exc
 
 from ..contracts import LLMRequest, ModelConfig, OrchestrationResult
 from ..providers import ProviderRegistry

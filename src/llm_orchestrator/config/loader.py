@@ -195,11 +195,11 @@ def build_registry(
     supplied it is used exclusively for credential resolution; otherwise
     ``os.environ`` is read here, inside this function only.
     """
-    # Lazy imports keep ``import llm_orchestrator.config`` free of provider
-    # SDKs: they load only when a registry is actually built.
-    from ..providers.gemini import GeminiProvider
-    from ..providers.groq import GroqProvider
-
+    # Lazy, per-branch imports keep ``import llm_orchestrator.config`` free of
+    # provider SDKs and let a consumer install only the extra they configure:
+    # a Gemini-only setup never imports the Groq adapter (and vice versa).
+    # Importing an adapter without its extra raises the adapter's actionable
+    # ``ConfigurationError`` naming the extra to install.
     source = _resolve_env(env)
     registry = ProviderRegistry()
     for provider_config in settings.providers:
@@ -217,7 +217,11 @@ def build_registry(
         )
         client = _injected_client(client_factory, provider_config.name)
         if provider_config.name == "gemini":
+            from ..providers.gemini import GeminiProvider
+
             registry.register(GeminiProvider(api_key=api_key, client=client))
         else:
+            from ..providers.groq import GroqProvider
+
             registry.register(GroqProvider(api_key=api_key, client=client))
     return registry
