@@ -9,7 +9,7 @@ deferred (see [`docs/roadmap.md`](docs/roadmap.md)).
 It is **infrastructure**, not an application: consuming projects (such as
 ReviewIQ) bring their own prompts, schemas, and business logic.
 
-> **Status: Phase 14 — Packaging & release readiness.**
+> **Status: Phase 17 — Production hardening.**
 > The package installs and exposes a provider-neutral **contract layer**
 > (`llm_orchestrator.contracts`), a normalized **error taxonomy**
 > (`llm_orchestrator.errors`), the **provider abstraction + registry**
@@ -24,8 +24,11 @@ ReviewIQ) bring their own prompts, schemas, and business logic.
 > and a secure, typed **configuration system** (`llm_orchestrator.config`).
 > The default install is core-only (**Pydantic**); provider SDKs and LangGraph
 > are optional extras — see [Installation](#installation).
-> **Observability is deferred** — runs already preserve the attempt history it
-> will consume (see [`docs/roadmap.md`](docs/roadmap.md)).
+> **Timeout validation at all execution seams** rejects invalid per-call
+> `timeout_s` values before any attempt or SDK call; a CI **dependency audit**
+> job runs `pip-audit` on every run. **Observability is deferred** — runs
+> already preserve the attempt history it will consume (see
+> [`docs/roadmap.md`](docs/roadmap.md)).
 
 ## Why
 
@@ -653,17 +656,18 @@ RUN_GROQ_INTEGRATION=1 GROQ_API_KEY=... GROQ_TEST_MODEL=... pytest -m live
 
 ## Current phase
 
-**Phase 14 — Packaging & release readiness.** The library now ships a
-core-only default install (Pydantic alone) with optional `gemini`, `groq`,
-`langgraph`, `all`, and `dev` extras declared in `pyproject.toml`; provider
-SDKs and LangGraph are imported lazily and missing extras fail with an
-actionable `ConfigurationError`. The package carries its PEP 561 `py.typed`
-marker, builds wheel and sdist via `python -m build`, and is validated by
-content/metadata checks, clean-environment install smokes, and a dedicated CI
-`package` job across Python 3.11–3.14. Earlier phases are unchanged: routing
-chooses the initial candidate, retry re-attempts it, fallback moves to another
-one, and the LangGraph workflow is untouched. Observability remains deferred.
-The MIT license ships in the repository as [`LICENSE`](LICENSE).
+**Phase 17 — Production hardening.** Timeout validation at all execution seams
+(`RetryEngine.generate`, `FallbackExecutor.run`, `Orchestrator.run`, provider
+`generate` methods) rejects invalid per-call `timeout_s` values before any
+attempt or SDK call. Structured-output failure semantics documented: validation
+is post-orchestration, so `StructuredOutputValidationError` is not auto-caught
+by retry/fallback; `include_validation_failures` only applies when a validation
+error surfaces from inside a candidate attempt. A CI `audit` job runs
+`pip-audit --local` with `[dev,all]` extras and fails on findings; the
+repository has no lockfile, so it audits the resolved environment. Dependency
+audit found 12 vulnerabilities in `pip` 25.2 (the audit tool itself) and zero
+in project dependencies. The CI job is added but its execution on GitHub is
+pending.
 
 Release history: [`CHANGELOG.md`](CHANGELOG.md).
 
@@ -679,9 +683,10 @@ Empty repo → Architecture (Phase 0) → Package foundation (Phase 1)
               → Fallback execution (Phase 11)
               → Configuration system (Phase 12)
               → Testing hardening (Phase 13)
-              → Packaging (Phase 14, current)
-           → ReviewIQ integration → Portability test
-           → Production hardening → Final E2E validation
+              → Packaging (Phase 14)
+            → ReviewIQ integration → Portability test
+            → Production hardening (Phase 17, current)
+            → Final E2E validation
 Observability: deferred (attempt history already preserved)
 ```
 

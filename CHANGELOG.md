@@ -66,3 +66,26 @@ index.
   paths, names, and semantics.
 - License: MIT, with `Copyright (c) 2026 RISHI V.` — see
   [`LICENSE`](LICENSE).
+
+### Hardening (Phase 17)
+
+- **Timeout validation** (`llm_orchestrator.errors.validate_timeout_s`): every
+  public execution seam (`RetryEngine.generate`, `FallbackExecutor.run`,
+  `Orchestrator.run`, `GroqProvider.generate`, `GeminiProvider.generate`)
+  rejects invalid per-call `timeout_s` values (zero, negative, NaN, infinite)
+  with a value-free `ConfigurationError` before any attempt or SDK call.
+- **Structured-output failure semantics** (`docs/structured-output.md`,
+  `docs/fallback.md`, `docs/errors.md`): validation is post-orchestration;
+  `validate_structured_output` raises after `FallbackExecutor.run` returns,
+  so `StructuredOutputValidationError` is not auto-caught by retry/fallback.
+  `include_validation_failures` only applies when a validation error surfaces
+  from inside a candidate attempt, not in the documented post-execution flow.
+- **CI dependency audit** (`.github/workflows/ci.yml`): new `audit` job runs
+  `pip-audit --local` on Python 3.14 with `[dev,all]` extras installed, after
+  upgrading pip. It fails on findings; no lockfile exists, so it audits the
+  resolved environment, not a locked set.
+- **Dependency audit results**: 12 vulnerabilities found in `pip` 25.2 (the
+  audit tool itself, not a project dependency); zero findings for project
+  dependencies (`pydantic`, `google-genai`, `groq`, `langgraph`, `httpx`,
+  `pytest`, `ruff`, `mypy`, `build`). The project package (`llm-orchestrator`
+  0.1.0) is not published on PyPI and could not be audited.
