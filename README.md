@@ -1,5 +1,4 @@
-::: {align="center"}
-# llm-orchestrator
+#llm-orchestrator
 
 ### A reusable orchestration layer for LLM-powered Python applications
 
@@ -628,6 +627,6 @@ This project is licensed under the [MIT License](LICENSE).
 
 ------------------------------------------------------------------------
 
-::: {align="center"}
+
 **Built to make LLM integrations easier to reuse, test, and maintain.**
-:::
+
